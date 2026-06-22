@@ -15,7 +15,7 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="icon" href="./icons/icon-192.png">
 
-    <!-- Leaflet via CDN (Ajustado para funcionar direto da internet sem precisar de pastas locais) -->
+    <!-- Leaflet via CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
         :root {
@@ -105,7 +105,7 @@
             border:1px solid rgba(0,255,136,.4); border-radius:4px; font-family:monospace;
         }
         .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#444; margin-right:6px; vertical-align:middle; }
-        .status-dot.active { background:var(--primary); }
+        .status-dot.active { background:var(--primary); animation:pulse-bar 1.4s ease-in-out infinite; }
         .status-dot.warn   { background:var(--warn); }
         .status-dot.error  { background:var(--danger); }
         .status-dot.stop   { background:var(--stop-color); }
@@ -152,6 +152,14 @@
             background:rgba(255,107,53,.15); border:1px solid rgba(255,107,53,.4);
             border-radius:4px; padding:2px 8px; font-size:1em; font-weight:700; white-space:nowrap;
         }
+
+        #liveBadge {
+            display:flex; align-items:center; gap:8px;
+            background:#06291a; border:1px solid var(--primary); color:var(--primary);
+            border-radius:8px; padding:8px 14px; font-size:.78em;
+            font-family:monospace; letter-spacing:1px;
+        }
+        #liveBadge .badge-dot { width:8px; height:8px; border-radius:50%; background:var(--primary); animation:pulse-bar 1s ease-in-out infinite; flex-shrink:0; }
 
         #historicoPanel {
             background:var(--card); border-radius:var(--radius);
@@ -256,6 +264,11 @@
 <div class="controls">
     <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veiculo">
 
+    <div id="liveBadge">
+        <span class="badge-dot"></span>
+        <span>GPS CONTINUO ATIVO - enviando em tempo real</span>
+    </div>
+
     <div id="offlineBadge">
         <span class="badge-dot"></span>
         <span>MODO OFFLINE - Gravando localmente</span>
@@ -271,7 +284,7 @@
         <span id="stopTimer">0:00</span>
     </div>
 
-    <button id="btnAtualizar" onclick="atualizarLocalizacao()">&#128752; ATUALIZAR LOCALIZACAO</button>
+    <button id="btnAtualizar" onclick="atualizarLocalizacao()">&#128752; FORCAR ATUALIZACAO AGORA</button>
 
     <div class="metrics-grid" id="metricsGrid" style="display:none">
         <div class="metric-card">
@@ -348,7 +361,7 @@
 
 </div>
 
-<!-- Leaflet via CDN (Ajustado) -->
+<!-- Leaflet via CDN -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
 <!-- Firebase COMPAT via CDN -->
@@ -744,7 +757,7 @@ initMap();
 // ═══════════════════════════════════════════════════
 function mostrarErro(origem, msg) {
     errorLog.style.display = 'block';
-    errorLog.innerHTML += '[' +裝origem + '] ' + msg + '<br>';
+    errorLog.innerHTML += '[' + origem + '] ' + msg + '<br>';
     document.getElementById('statusDot').className = 'status-dot error';
     document.getElementById('gpsSignal').className = 'gps-signal';
 }
@@ -831,7 +844,7 @@ function enviarDados(dados) {
                 db.ref('veiculos/' + vID + '/historico').push(dados)
                     .then(function() {
                         if (!stopState.alerted) {
-                            statusText.innerHTML = 'Transmitindo!<br>' + endComp + '<br>' +
+                            statusText.innerHTML = 'Transmitindo em tempo real!<br>' + endComp + '<br>' +
                                 dados.velocidade + ' km/h | ' + dados.acuracia + 'm';
                         }
                         sincronizarFila();
@@ -865,6 +878,46 @@ function enviarDados(dados) {
     }
 }
 
+// ═══════════════════════════════════════════════════
+//  RASTREAMENTO CONTINUO EM TEMPO REAL (watchPosition)
+// ═══════════════════════════════════════════════════
+var watchId = null;
+var ultimoEnvioTS = 0;
+var INTERVALO_MIN_ENVIO = 4000; // intervalo minimo entre envios ao Firebase (ms)
+
+function processarPosicao(pos, forcarEnvio) {
+    var agora = Date.now();
+    if (!forcarEnvio && (agora - ultimoEnvioTS) < INTERVALO_MIN_ENVIO) {
+        return; // ainda dentro do intervalo de seguranca, ignora esta leitura
+    }
+    ultimoEnvioTS = agora;
+
+    enviarDados({
+        lat:        pos.coords.latitude,
+        lon:        pos.coords.longitude,
+        hora:       new Date().toLocaleTimeString(),
+        timestamp:  Date.now(),
+        acuracia:   Number(pos.coords.accuracy).toFixed(1),
+        velocidade: pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0
+    });
+}
+
+function iniciarRastreamentoContinuo() {
+    if (!navigator.geolocation) {
+        mostrarErro('GPS', 'Geolocalizacao nao disponivel neste dispositivo/navegador.');
+        return;
+    }
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+    }
+    watchId = navigator.geolocation.watchPosition(
+        function(pos) { processarPosicao(pos, false); },
+        function(err) { mostrarErro('GPS', 'Erro ' + err.code + ': ' + err.message); },
+        {enableHighAccuracy:true, maximumAge:3000, timeout:20000}
+    );
+}
+
+// Botao manual: forca uma leitura e envio imediatos, ignorando o intervalo minimo
 function atualizarLocalizacao() {
     var btn = document.getElementById('btnAtualizar');
     if (btn) btn.classList.add('loading');
@@ -878,22 +931,24 @@ function atualizarLocalizacao() {
     navigator.geolocation.getCurrentPosition(
         function(pos) {
             if (btn) btn.classList.remove('loading');
-            enviarDados({
-                lat:       pos.coords.latitude,
-                lon:       pos.coords.longitude,
-                hora:      new Date().toLocaleTimeString(),
-                timestamp: Date.now(),
-                acuracia:  Number(pos.coords.accuracy).toFixed(1),
-                velocidade: pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0
-            });
+            processarPosicao(pos, true);
         },
         function(err) {
             if (btn) btn.classList.remove('loading');
             mostrarErro('GPS', 'Erro ' + err.code + ': ' + err.message);
         },
-        {enableHighAccuracy:true, maximumAge:10000, timeout:20000}
+        {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
     );
 }
+
+// Seguranca extra: alguns navegadores reduzem a frequencia do watchPosition
+// quando a aba fica em segundo plano. Este temporizador garante que, se
+// nenhuma leitura ocorrer por mais de 15s, uma nova leitura sera forcada.
+setInterval(function() {
+    if (Date.now() - ultimoEnvioTS > 15000) {
+        atualizarLocalizacao();
+    }
+}, 15000);
 
 function centralizarMapa() {
     if (historicoRota.length > 0) {
@@ -1136,9 +1191,9 @@ function mostrarRotaHistorico() {
 //  INIT
 // ═══════════════════════════════════════════════════
 atualizarBadge();
-setInterval(atualizarLocalizacao, 8000);
-atualizarLocalizacao();
+iniciarRastreamentoContinuo();   // GPS continuo: a cada movimento detectado, ja envia (respeitando o intervalo minimo)
+atualizarLocalizacao();          // primeira leitura imediata, ao abrir o app
 setInterval(sincronizarFila, 30000);
 </script>
 </body>
-</html>
+    </html>
