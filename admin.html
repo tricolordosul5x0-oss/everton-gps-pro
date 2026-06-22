@@ -14,6 +14,7 @@
             --bg: #121212;
             --card: #1e1e1e;
             --accent: #00c8ff;
+            --highlight: #ff9900;
             --text: #ffffff;
             --border: #2a2a2a;
         }
@@ -35,6 +36,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
         }
 
         .panel-container {
@@ -76,6 +79,17 @@
             font-size: 0.9em;
             text-transform: uppercase;
             letter-spacing: 1px;
+        }
+
+        .card.destaque h3 { color: var(--highlight); }
+        .card.destaque { border-color: #3a2a10; }
+
+        .card-sub {
+            font-size: 0.75em;
+            color: #888;
+            margin-top: -8px;
+            margin-bottom: 12px;
+            line-height: 1.4;
         }
 
         .address-box p {
@@ -125,8 +139,23 @@
             margin-top: 5px;
         }
 
+        button.btn-destaque {
+            background: linear-gradient(135deg, #ff9900, #ffcc00);
+        }
+
         button:hover { opacity: 0.9; }
         button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .resultado-box {
+            margin-top: 10px;
+            padding: 10px;
+            background: #252525;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            min-height: 20px;
+        }
+
+        .resultado-box p { font-size: 0.9em; line-height: 1.5; color: #ddd; }
 
         .metrics-grid {
             display: grid;
@@ -153,6 +182,17 @@
             color: var(--primary);
             border: 1px solid var(--primary);
         }
+
+        .legenda-mapa {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            font-size: 0.72em;
+            color: #aaa;
+            margin-top: 8px;
+        }
+        .legenda-mapa span { display: flex; align-items: center; gap: 5px; }
+        .legenda-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
     </style>
 </head>
 <body>
@@ -160,7 +200,7 @@
 <header>
     <div>
         <h2 style="letter-spacing: 2px;">⚡ Everton GPS - Admin Pro</h2>
-        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">FILTROS COMPLETOS POR INTERVALOS DE DATAS E ENDEREÇAMENTO INTEGRAÇÃO TOTAL</p>
+        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">FILTROS POR INTERVALO DE DATAS, HORÁRIOS E LOCALIZAÇÃO EXATA POR DIA/HORA</p>
     </div>
     <div class="status-badge" id="conexaoStatus">Inicializando...</div>
 </header>
@@ -168,13 +208,43 @@
 <div class="panel-container">
     <div>
         <div id="map"></div>
+        <div class="legenda-mapa">
+            <span><i class="legenda-dot" style="background:#00ff88;"></i> Rota do intervalo pesquisado</span>
+            <span><i class="legenda-dot" style="background:#ffaa00;"></i> Trajeto do dia (busca pontual)</span>
+            <span><i class="legenda-dot" style="background:#00c8ff;"></i> Última posição</span>
+            <span><i class="legenda-dot" style="background:#ff9900;"></i> Posição no momento exato</span>
+        </div>
     </div>
 
     <div class="sidebar">
-        <!-- Filtros e Pesquisa Avançada -->
+
+        <!-- NOVO: Localização Exata por Dia e Horário -->
+        <div class="card destaque">
+            <h3>📍 Localizar em Dia e Horário Exato</h3>
+            <p class="card-sub">Informe uma data e um horário específicos para descobrir exatamente por onde o veículo passou naquele momento.</p>
+
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>DATA</label>
+                    <input type="date" id="dataPontual">
+                </div>
+                <div class="filter-group">
+                    <label>HORÁRIO</label>
+                    <input type="time" id="horaPontualBusca" value="12:00">
+                </div>
+            </div>
+
+            <button id="btnLocalizarMomento" class="btn-destaque" onclick="localizarMomentoExato()">Localizar Neste Momento</button>
+
+            <div class="resultado-box" id="resultadoPontual">
+                <p style="color:#888;">Escolha um dia e horário para localizar o veículo.</p>
+            </div>
+        </div>
+
+        <!-- Filtros e Pesquisa por Intervalo -->
         <div class="card">
-            <h3>Painel de Filtros Avançados</h3>
-            
+            <h3>Painel de Filtros por Intervalo</h3>
+
             <div class="filter-group" style="margin-bottom: 10px;">
                 <label>ID DO VEÍCULO</label>
                 <input type="text" id="veiculoIDAdmin" value="VEICULO-01">
@@ -200,7 +270,7 @@
                 </select>
             </div>
 
-            <!-- NOVA SEÇÃO: Pesquisa por Intervalo Completo de Datas -->
+            <!-- Pesquisa por Intervalo Completo de Datas -->
             <div class="filter-row">
                 <div class="filter-group">
                     <label>DATA INICIAL (DE)</label>
@@ -284,8 +354,9 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
-var map, adminMarker, rotaVerdePolyline;
+var map, adminMarker, rotaVerdePolyline, rotaDoDiaPolyline, pontoExatoMarker = null;
 var firebaseRefHistorico = null;
+var firebaseRefMomento = null;
 
 var carroIconeAdmin = L.divIcon({
     className: '',
@@ -297,12 +368,60 @@ var carroIconeAdmin = L.divIcon({
     iconSize: [36, 36], iconAnchor: [18, 18]
 });
 
+// Ícone diferenciado para o ponto encontrado na busca por dia/horário exato
+var iconeMomentoExato = L.divIcon({
+    className: '',
+    html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ff9900;border:3px solid #fff;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.7);">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="#121212">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
+            </svg>
+           </div>`,
+    iconSize: [36, 36], iconAnchor: [18, 32], popupAnchor: [0, -30]
+});
+
 function initAdminMap() {
     map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-23.5505, -46.6333], 15);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+    // Trajeto do dia inteiro usado como contexto na busca pontual (fica abaixo das outras camadas)
+    rotaDoDiaPolyline = L.polyline([], { color: '#ffaa00', weight: 4, opacity: 0.45, dashArray: '6 8' }).addTo(map);
+
     rotaVerdePolyline = L.polyline([], { color: '#00ff88', weight: 6, opacity: 0.85 }).addTo(map);
     adminMarker = L.marker([-23.5505, -46.6333], { icon: carroIconeAdmin }).addTo(map);
+}
+
+// ═══════════════════════════════════════════════════
+//  NORMALIZAÇÃO DE LOGS (usado por todas as buscas)
+// ═══════════════════════════════════════════════════
+// Garante dataISO ("YYYY-MM-DD"), hora ("HH:MM:SS") e tsMs (timestamp em ms)
+// preenchidos de forma consistente, seja qual for o formato salvo no Firebase.
+function normalizarLog(log) {
+    if (!log || log.lat === undefined || log.lon === undefined) return null;
+
+    var dataISO = log.dataISO;
+    var hora = log.hora;
+    var tsMs = null;
+
+    if (log.timestamp) {
+        tsMs = Number(log.timestamp);
+        if (!dataISO) dataISO = new Date(tsMs).toISOString().slice(0, 10);
+        if (!hora) hora = new Date(tsMs).toLocaleTimeString('pt-BR');
+    } else if (dataISO && hora) {
+        var partes = hora.split(':');
+        var dCalc = new Date(dataISO + 'T00:00:00');
+        dCalc.setHours(Number(partes[0]) || 0, Number(partes[1]) || 0, Number(partes[2]) || 0, 0);
+        tsMs = dCalc.getTime();
+    }
+
+    return {
+        lat: Number(log.lat),
+        lon: Number(log.lon),
+        dataISO: dataISO,
+        hora: hora,
+        tsMs: tsMs,
+        velocidade: log.velocidade,
+        acuracia: log.acuracia
+    };
 }
 
 // ═══════════════════════════════════════════════════
@@ -346,9 +465,13 @@ function processarERealinharRotaPelasRuas(pontosBrutos) {
 }
 
 // ═══════════════════════════════════════════════════
-//  NOVO MOTOR DE ENDEREÇO COMPLETO E EXTENSO
+//  MOTOR DE ENDEREÇO COMPLETO E EXTENSO
+//  (reutilizável tanto para a busca por intervalo quanto para a busca pontual)
 // ═══════════════════════════════════════════════════
-function traduzirCoordenadasParaEnderecoCompleto(lat, lon) {
+function traduzirCoordenadasParaEnderecoCompleto(lat, lon, marcadorAlvo, rotuloPopup) {
+    marcadorAlvo = marcadorAlvo || adminMarker;
+    rotuloPopup = rotuloPopup || 'Última Parada Identificada';
+
     var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=pt-BR&zoom=18';
 
     fetch(url, { headers: { 'User-Agent': 'EvertonGPSAdminProV3' } })
@@ -365,13 +488,124 @@ function traduzirCoordenadasParaEnderecoCompleto(lat, lon) {
                 // Abre o pop-up com as primeiras partes legíveis do endereço completo
                 var partes = enderecoCompleto.split(',');
                 var resumoPopUp = partes[0] + (partes[1] ? ',' + partes[1] : '') + (partes[2] ? ',' + partes[2] : '');
-                adminMarker.bindPopup(`<b>Última Parada Identificada:</b><br>${resumoPopUp}`).openPopup();
+                marcadorAlvo.bindPopup(`<b>${rotuloPopup}:</b><br>${resumoPopUp}`).openPopup();
             } else {
                 document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
             }
         }).catch(function() {
             document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
         });
+}
+
+// ═══════════════════════════════════════════════════
+//  NOVO: LOCALIZAR POR DIA E HORÁRIO EXATO
+//  Encontra, dentro do histórico daquele dia, o ponto registrado
+//  mais próximo do horário pesquisado e mostra onde o veículo estava.
+// ═══════════════════════════════════════════════════
+function localizarMomentoExato() {
+    var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
+    var dataAlvo = document.getElementById('dataPontual').value;
+    var horaAlvo = document.getElementById('horaPontualBusca').value;
+    var resultadoEl = document.getElementById('resultadoPontual');
+
+    if (!dataAlvo || !horaAlvo) {
+        resultadoEl.innerHTML = '<p style="color:#ff6666;">Selecione a data e o horário para localizar o veículo.</p>';
+        return;
+    }
+
+    var btn = document.getElementById('btnLocalizarMomento');
+    btn.disabled = true;
+    btn.textContent = "Localizando...";
+    document.getElementById('conexaoStatus').textContent = "Buscando momento exato...";
+    resultadoEl.innerHTML = '<p style="color:#888;">Buscando registros do dia...</p>';
+
+    var partesHoraAlvo = horaAlvo.split(':');
+    var dataHoraAlvoObj = new Date(dataAlvo + 'T00:00:00');
+    dataHoraAlvoObj.setHours(Number(partesHoraAlvo[0]) || 0, Number(partesHoraAlvo[1]) || 0, 0, 0);
+    var tsAlvo = dataHoraAlvoObj.getTime();
+
+    if (firebaseRefMomento) firebaseRefMomento.off();
+    firebaseRefMomento = db.ref('veiculos/' + vID + '/historico').limitToLast(3000);
+
+    firebaseRefMomento.once('value').then(function (snapshot) {
+        var pontosDoDia = [];
+
+        snapshot.forEach(function (childSnapshot) {
+            var ponto = normalizarLog(childSnapshot.val());
+            if (!ponto || !ponto.dataISO || ponto.dataISO !== dataAlvo) return;
+            pontosDoDia.push(ponto);
+        });
+
+        pontosDoDia.sort(function (a, b) { return (a.tsMs || 0) - (b.tsMs || 0); });
+
+        if (pontosDoDia.length === 0) {
+            resultadoEl.innerHTML = '<p style="color:#ff6666;">Nenhum registro encontrado para esta data.</p>';
+            document.getElementById('conexaoStatus').textContent = "Sem dados";
+            rotaDoDiaPolyline.setLatLngs([]);
+            btn.disabled = false;
+            btn.textContent = "Localizar Neste Momento";
+            return;
+        }
+
+        // Desenha o trajeto completo do dia em segundo plano, como contexto visual
+        rotaDoDiaPolyline.setLatLngs(pontosDoDia.map(function (p) { return [p.lat, p.lon]; }));
+
+        // Encontra o ponto com horário mais próximo do solicitado
+        var maisProximo = pontosDoDia[0];
+        var menorDiferenca = Math.abs((maisProximo.tsMs !== null ? maisProximo.tsMs : tsAlvo) - tsAlvo);
+
+        pontosDoDia.forEach(function (p) {
+            if (p.tsMs === null) return;
+            var diff = Math.abs(p.tsMs - tsAlvo);
+            if (diff < menorDiferenca) {
+                menorDiferenca = diff;
+                maisProximo = p;
+            }
+        });
+
+        if (!pontoExatoMarker) {
+            pontoExatoMarker = L.marker([maisProximo.lat, maisProximo.lon], { icon: iconeMomentoExato }).addTo(map);
+        } else {
+            pontoExatoMarker.setLatLng([maisProximo.lat, maisProximo.lon]);
+        }
+
+        map.flyTo([maisProximo.lat, maisProximo.lon], 17, { duration: 0.8 });
+
+        var diferencaMin = Math.round(menorDiferenca / 60000);
+        var textoDiferenca = diferencaMin === 0
+            ? "horário exato encontrado no histórico"
+            : ("ponto mais próximo encontrado: diferença de " + diferencaMin + " min em relação ao horário pesquisado");
+
+        var dataFormatada = maisProximo.dataISO.split('-').reverse().join('/');
+
+        resultadoEl.innerHTML =
+            '<p><strong>Veículo localizado:</strong><br>' + dataFormatada + ' às ' + (maisProximo.hora || '-') + '</p>' +
+            '<p style="color:#888;font-size:0.8em;margin-top:6px;">' + textoDiferenca + '</p>';
+
+        pontoExatoMarker.bindPopup('<b>Veículo em ' + (maisProximo.hora || '-') + '</b><br>Buscando endereço...').openPopup();
+
+        // Atualiza as métricas com os dados do ponto encontrado
+        document.getElementById('adm-vel').textContent = (maisProximo.velocidade || 0) + " km/h";
+        document.getElementById('adm-acc').textContent = (maisProximo.acuracia || 0) + " m";
+        document.getElementById('adm-time').textContent = dataFormatada + " " + (maisProximo.hora || "");
+
+        // Busca o endereço completo do ponto exato e exibe no popup/marcador correspondente
+        traduzirCoordenadasParaEnderecoCompleto(
+            maisProximo.lat, maisProximo.lon,
+            pontoExatoMarker,
+            'Veículo em ' + (maisProximo.hora || '-')
+        );
+
+        document.getElementById('conexaoStatus').textContent = "Pronto";
+        btn.disabled = false;
+        btn.textContent = "Localizar Neste Momento";
+    }).catch(function (err) {
+        console.error(err);
+        resultadoEl.innerHTML = '<p style="color:#ff6666;">Erro ao buscar dados no servidor.</p>';
+        document.getElementById('conexaoStatus').textContent = "Erro";
+        btn.disabled = false;
+        btn.textContent = "Localizar Neste Momento";
+    });
 }
 
 // ═══════════════════════════════════════════════════
@@ -400,37 +634,28 @@ function aplicarFiltrosEBuscar() {
         var ultimoPontoValido = null;
 
         snapshot.forEach(function(childSnapshot) {
-            var log = childSnapshot.val();
-            if (!log.lat || !log.lon) return;
-
-            var dataLogISO = log.dataISO; 
-            var horaLog = log.hora;       
-
-            if(!dataLogISO && log.timestamp) {
-                var dObj = new Date(log.timestamp);
-                dataLogISO = dObj.toISOString().slice(0,10); // Retorna "YYYY-MM-DD"
-                horaLog = dObj.toLocaleTimeString('pt-BR');  // Retorna "HH:MM:SS"
-            }
+            var log = normalizarLog(childSnapshot.val());
+            if (!log) return;
 
             // Filtro 1: Mês Específico
-            if (mesFiltro && dataLogISO) {
-                var mesDoLog = dataLogISO.split('-')[1];
+            if (mesFiltro && log.dataISO) {
+                var mesDoLog = log.dataISO.split('-')[1];
                 if (mesDoLog !== mesFiltro) return;
             }
 
             // Filtro 2: Validação por Janela de Datas (De / Até)
-            if (dataLogISO) {
-                if (dataInicioFiltro && dataLogISO < dataInicioFiltro) return;
-                if (dataFimFiltro && dataLogISO > dataFimFiltro) return;
+            if (log.dataISO) {
+                if (dataInicioFiltro && log.dataISO < dataInicioFiltro) return;
+                if (dataFimFiltro && log.dataISO > dataFimFiltro) return;
             }
 
             // Filtro 3: Janela de Horários
-            if (horaLog) {
-                var apenasHoraMinuto = horaLog.substring(0, 5);
+            if (log.hora) {
+                var apenasHoraMinuto = log.hora.substring(0, 5);
                 if (apenasHoraMinuto < horaIn || apenasHoraMinuto > horaFim) return;
             }
 
-            pontosFiltrados.push([Number(log.lat), Number(log.lon)]);
+            pontosFiltrados.push([log.lat, log.lon]);
             ultimoPontoValido = log;
         });
 
@@ -453,7 +678,7 @@ function aplicarFiltrosEBuscar() {
             document.getElementById('adm-time').textContent = (ultimoPontoValido.dataISO ? ultimoPontoValido.dataISO.split('-').reverse().join('/') : "") + " " + (ultimoPontoValido.hora || "");
             
             // Faz a chamada para retornar o endereço completo extenso
-            traduzirCoordenadasParaEnderecoCompleto(ultimoPontoValido.lat, ultimoPontoValido.lon);
+            traduzirCoordenadasParaEnderecoCompleto(ultimoPontoValido.lat, ultimoPontoValido.lon, adminMarker, 'Última Parada Identificada');
             document.getElementById('conexaoStatus').textContent = "Pronto";
         } else {
             rotaVerdePolyline.setLatLngs([]);
@@ -477,6 +702,7 @@ window.onload = function() {
     var hoje = new Date().toISOString().slice(0, 10);
     document.getElementById('filtroDataInicio').value = hoje;
     document.getElementById('filtroDataFim').value = hoje;
+    document.getElementById('dataPontual').value = hoje;
     
     aplicarFiltrosEBuscar();
 };
