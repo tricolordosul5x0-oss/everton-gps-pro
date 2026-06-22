@@ -3,9 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Everton GPS - Admin Avançado</title>
+    <title>Everton GPS - Admin Pro Master</title>
 
-    <!-- Leaflet via CDN -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     
     <style>
@@ -146,6 +145,36 @@
         button:hover { opacity: 0.9; }
         button:disabled { opacity: 0.4; cursor: not-allowed; }
 
+        /* Estilos da Timeline */
+        .timeline-container {
+            margin-top: 10px;
+            background: #252525;
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .timeline-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #444;
+            outline: none;
+            margin: 10px 0;
+            cursor: pointer;
+        }
+
+        .timeline-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+        }
+
         .resultado-box {
             margin-top: 10px;
             padding: 10px;
@@ -200,7 +229,7 @@
 <header>
     <div>
         <h2 style="letter-spacing: 2px;">⚡ Everton GPS - Admin Pro</h2>
-        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">FILTROS POR INTERVALO DE DATAS, HORÁRIOS E LOCALIZAÇÃO EXATA POR DIA/HORA</p>
+        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">PAINEL COMPLETO: INTERVALOS, LINHA DO TEMPO INDIVIDUAL E BUSCA PONTUAL</p>
     </div>
     <div class="status-badge" id="conexaoStatus">Inicializando...</div>
 </header>
@@ -211,18 +240,28 @@
         <div class="legenda-mapa">
             <span><i class="legenda-dot" style="background:#00ff88;"></i> Rota do intervalo pesquisado</span>
             <span><i class="legenda-dot" style="background:#ffaa00;"></i> Trajeto do dia (busca pontual)</span>
-            <span><i class="legenda-dot" style="background:#00c8ff;"></i> Última posição</span>
+            <span><i class="legenda-dot" style="background:#00c8ff;"></i> Posição selecionada</span>
             <span><i class="legenda-dot" style="background:#ff9900;"></i> Posição no momento exato</span>
         </div>
     </div>
 
     <div class="sidebar">
 
-        <!-- NOVO: Localização Exata por Dia e Horário -->
+        <div class="card">
+            <h3>⏱️ Linha do Tempo do Trajeto</h3>
+            <div class="timeline-container">
+                <span class="metric-label">Arraste para percorrer os horários do mapa:</span>
+                <input type="range" id="timelineSlider" class="timeline-slider" min="0" max="0" value="0" oninput="navegarLinhaTempo(this.value)" disabled>
+                <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #888;">
+                    <span id="tempoInicioRoteiro">Início</span>
+                    <span id="tempoFimRoteiro">Fim</span>
+                </div>
+            </div>
+        </div>
+
         <div class="card destaque">
             <h3>📍 Localizar em Dia e Horário Exato</h3>
-            <p class="card-sub">Informe uma data e um horário específicos para descobrir exatamente por onde o veículo passou naquele momento.</p>
-
+            <p class="card-sub">Informe um horário específico para descobrir onde o veículo estava naquele exato instante.</p>
             <div class="filter-row">
                 <div class="filter-group">
                     <label>DATA</label>
@@ -233,44 +272,18 @@
                     <input type="time" id="horaPontualBusca" value="12:00">
                 </div>
             </div>
-
             <button id="btnLocalizarMomento" class="btn-destaque" onclick="localizarMomentoExato()">Localizar Neste Momento</button>
-
             <div class="resultado-box" id="resultadoPontual">
                 <p style="color:#888;">Escolha um dia e horário para localizar o veículo.</p>
             </div>
         </div>
 
-        <!-- Filtros e Pesquisa por Intervalo -->
         <div class="card">
-            <h3>Painel de Filtros por Intervalo</h3>
-
+            <h3>Filtros por Intervalo Largo</h3>
             <div class="filter-group" style="margin-bottom: 10px;">
                 <label>ID DO VEÍCULO</label>
                 <input type="text" id="veiculoIDAdmin" value="VEICULO-01">
             </div>
-
-            <!-- Pesquisa por Mês Opcional -->
-            <div class="filter-group" style="margin-bottom: 10px;">
-                <label>MÊS ESPECÍFICO (OPCIONAL)</label>
-                <select id="filtroMes">
-                    <option value="">Qualquer Mês</option>
-                    <option value="01">Janeiro</option>
-                    <option value="02">Fevereiro</option>
-                    <option value="03">Março</option>
-                    <option value="04">Abril</option>
-                    <option value="05">Maio</option>
-                    <option value="06">Junho</option>
-                    <option value="07">Julho</option>
-                    <option value="08">Agosto</option>
-                    <option value="09">Setembro</option>
-                    <option value="10">Outubro</option>
-                    <option value="11">Novembro</option>
-                    <option value="12">Dezembro</option>
-                </select>
-            </div>
-
-            <!-- Pesquisa por Intervalo Completo de Datas -->
             <div class="filter-row">
                 <div class="filter-group">
                     <label>DATA INICIAL (DE)</label>
@@ -281,8 +294,6 @@
                     <input type="date" id="filtroDataFim">
                 </div>
             </div>
-
-            <!-- Pesquisa por Horários -->
             <div class="filter-row">
                 <div class="filter-group">
                     <label>HORA INICIAL (DE)</label>
@@ -293,11 +304,9 @@
                     <input type="time" id="filtroHoraFim" value="23:59">
                 </div>
             </div>
-
             <button id="btnFiltrar" onclick="aplicarFiltrosEBuscar()">Pesquisar e Aplicar Rota</button>
         </div>
 
-        <!-- Endereço Completo Formatado Extenso -->
         <div class="card">
             <h3>Endereço Completo Identificado</h3>
             <div class="address-box" id="addressDetails">
@@ -305,12 +314,11 @@
             </div>
         </div>
 
-        <!-- Métricas -->
         <div class="card">
             <h3>Métricas do Percurso</h3>
             <div class="metrics-grid">
                 <div class="metric">
-                    <div class="metric-label">Última Velocidade</div>
+                    <div class="metric-label">Velocidade no Ponto</div>
                     <div class="metric-value" id="adm-vel">0 km/h</div>
                 </div>
                 <div class="metric">
@@ -330,10 +338,8 @@
     </div>
 </div>
 
-<!-- Leaflet via CDN -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 
-<!-- Firebase COMPAT via CDN -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
@@ -357,6 +363,7 @@ var db = firebase.database();
 var map, adminMarker, rotaVerdePolyline, rotaDoDiaPolyline, pontoExatoMarker = null;
 var firebaseRefHistorico = null;
 var firebaseRefMomento = null;
+var logsFiltradosGlobais = [];
 
 var carroIconeAdmin = L.divIcon({
     className: '',
@@ -368,7 +375,6 @@ var carroIconeAdmin = L.divIcon({
     iconSize: [36, 36], iconAnchor: [18, 18]
 });
 
-// Ícone diferenciado para o ponto encontrado na busca por dia/horário exato
 var iconeMomentoExato = L.divIcon({
     className: '',
     html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ff9900;border:3px solid #fff;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.7);">
@@ -383,21 +389,13 @@ function initAdminMap() {
     map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-23.5505, -46.6333], 15);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-    // Trajeto do dia inteiro usado como contexto na busca pontual (fica abaixo das outras camadas)
     rotaDoDiaPolyline = L.polyline([], { color: '#ffaa00', weight: 4, opacity: 0.45, dashArray: '6 8' }).addTo(map);
-
     rotaVerdePolyline = L.polyline([], { color: '#00ff88', weight: 6, opacity: 0.85 }).addTo(map);
     adminMarker = L.marker([-23.5505, -46.6333], { icon: carroIconeAdmin }).addTo(map);
 }
 
-// ═══════════════════════════════════════════════════
-//  NORMALIZAÇÃO DE LOGS (usado por todas as buscas)
-// ═══════════════════════════════════════════════════
-// Garante dataISO ("YYYY-MM-DD"), hora ("HH:MM:SS") e tsMs (timestamp em ms)
-// preenchidos de forma consistente, seja qual for o formato salvo no Firebase.
 function normalizarLog(log) {
     if (!log || log.lat === undefined || log.lon === undefined) return null;
-
     var dataISO = log.dataISO;
     var hora = log.hora;
     var tsMs = null;
@@ -412,155 +410,104 @@ function normalizarLog(log) {
         dCalc.setHours(Number(partes[0]) || 0, Number(partes[1]) || 0, Number(partes[2]) || 0, 0);
         tsMs = dCalc.getTime();
     }
-
     return {
-        lat: Number(log.lat),
-        lon: Number(log.lon),
-        dataISO: dataISO,
-        hora: hora,
-        tsMs: tsMs,
-        velocidade: log.velocidade,
-        acuracia: log.acuracia
+        lat: Number(log.lat), lon: Number(log.lon),
+        dataISO: dataISO, hora: hora, tsMs: tsMs,
+        velocidade: log.velocidade, acuracia: log.acuracia
     };
 }
 
-// ═══════════════════════════════════════════════════
-//  SISTEMA DE SNAP TO ROADS (MANTIDO E ADAPTADO)
-// ═══════════════════════════════════════════════════
 function processarERealinharRotaPelasRuas(pontosBrutos) {
     if (pontosBrutos.length < 2) return;
-
-    var pontosParaApi = [];
-    var maxPontosApi = 50; 
-    
-    if (pontosBrutos.length <= maxPontosApi) {
-        pontosParaApi = pontosBrutos;
-    } else {
-        var salto = Math.ceil(pontosBrutos.length / maxPontosApi);
-        for (var i = 0; i < pontosBrutos.length; i += salto) {
-            pontosParaApi.push(pontosBrutos[i]);
-        }
-        if (pontosParaApi[pontosParaApi.length - 1] !== pontosBrutos[pontosBrutos.length - 1]) {
-            pontosParaApi.push(pontosBrutos[pontosBrutos.length - 1]);
-        }
-    }
-
-    var stringCoordenadas = pontosParaApi.map(function(pt) {
-        return pt[1] + ',' + pt[0];
-    }).join(';');
-
+    var pontosParaApi = pontosBrutos.slice(0, 50);
+    var stringCoordenadas = pontosParaApi.map(pt => pt[1] + ',' + pt[0]).join(';');
     var urlOsrm = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
-
-    fetch(urlOsrm)
-        .then(function(res) { return res.json(); })
-        .then(function(dadosOsrm) {
-            if (dadosOsrm.routes && dadosOsrm.routes.length > 0) {
-                var coordenadasAlinhadas = dadosOsrm.routes[0].geometry.coordinates.map(function(coord) {
-                    return [coord[1], coord[0]];
-                });
-                rotaVerdePolyline.setLatLngs(coordenadasAlinhadas);
-            }
-        })
-        .catch(function(e) { console.warn("Erro OSRM em segundo plano:", e); });
+    fetch(urlOsrm).then(res => res.json()).then(dadosOsrm => {
+        if (dadosOsrm.routes && dadosOsrm.routes.length > 0) {
+            var coordsAlinhadas = dadosOsrm.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            rotaVerdePolyline.setLatLngs(coordsAlinhadas);
+        }
+    }).catch(e => console.warn(e));
 }
 
-// ═══════════════════════════════════════════════════
-//  MOTOR DE ENDEREÇO COMPLETO E EXTENSO
-//  (reutilizável tanto para a busca por intervalo quanto para a busca pontual)
-// ═══════════════════════════════════════════════════
+var temporizadorBuscaEndereco;
 function traduzirCoordenadasParaEnderecoCompleto(lat, lon, marcadorAlvo, rotuloPopup) {
     marcadorAlvo = marcadorAlvo || adminMarker;
-    rotuloPopup = rotuloPopup || 'Última Parada Identificada';
-
-    var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=pt-BR&zoom=18';
-
-    fetch(url, { headers: { 'User-Agent': 'EvertonGPSAdminProV3' } })
-        .then(function(res) { return res.json(); })
-        .then(function(d) {
-            if (d && d.display_name) {
-                // display_name traz a string oficial corrida e completa da rua até o país
-                var enderecoCompleto = d.display_name;
-
-                document.getElementById('addressDetails').innerHTML = `
-                    <p><strong>Endereço Oficial:</strong><br>${enderecoCompleto}</p>
-                `;
-                
-                // Abre o pop-up com as primeiras partes legíveis do endereço completo
-                var partes = enderecoCompleto.split(',');
-                var resumoPopUp = partes[0] + (partes[1] ? ',' + partes[1] : '') + (partes[2] ? ',' + partes[2] : '');
-                marcadorAlvo.bindPopup(`<b>${rotuloPopup}:</b><br>${resumoPopUp}`).openPopup();
-            } else {
+    rotuloPopup = rotuloPopup || 'Posição Atual';
+    clearTimeout(temporizadorBuscaEndereco);
+    
+    temporizadorBuscaEndereco = setTimeout(function() {
+        var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=pt-BR&zoom=18';
+        fetch(url, { headers: { 'User-Agent': 'EvertonGPSTimelineProMaster' } })
+            .then(res => res.json())
+            .then(d => {
+                if (d && d.display_name) {
+                    document.getElementById('addressDetails').innerHTML = `<p><strong>Endereço Oficial:</strong><br>${d.display_name}</p>`;
+                    var partes = d.display_name.split(',');
+                    var resumo = partes[0] + (partes[1] ? ',' + partes[1] : '');
+                    marcadorAlvo.bindPopup(`<b>${rotuloPopup}:</b><br>${resumo}`).openPopup();
+                }
+            }).catch(() => {
                 document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
-            }
-        }).catch(function() {
-            document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
-        });
+            });
+    }, 400);
 }
 
-// ═══════════════════════════════════════════════════
-//  NOVO: LOCALIZAR POR DIA E HORÁRIO EXATO
-//  Encontra, dentro do histórico daquele dia, o ponto registrado
-//  mais próximo do horário pesquisado e mostra onde o veículo estava.
-// ═══════════════════════════════════════════════════
+// EXECUÇÃO DO CONTROLE DESLIZANTE (TIMELINE)
+function navegarLinhaTempo(index) {
+    if (!logsFiltradosGlobais || logsFiltradosGlobais.length === 0) return;
+    var logAtual = logsFiltradosGlobais[index];
+    if (!logAtual) return;
+
+    var novaPos = [logAtual.lat, logAtual.lon];
+    adminMarker.setLatLng(novaPos);
+    
+    document.getElementById('adm-vel').textContent = (logAtual.velocidade || 0) + " km/h";
+    document.getElementById('adm-acc').textContent = (logAtual.acuracia || 0) + " m";
+    var dataFormatada = logAtual.dataISO ? logAtual.dataISO.split('-').reverse().join('/') : "";
+    document.getElementById('adm-time').textContent = dataFormatada + " " + (logAtual.hora || "");
+
+    traduzirCoordenadasParaEnderecoCompleto(logAtual.lat, logAtual.lon, adminMarker, `Passou aqui às ${logAtual.hora}`);
+}
+
+// LOCALIZAR POR HORA EXATA PONTUAL
 function localizarMomentoExato() {
     var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
     var dataAlvo = document.getElementById('dataPontual').value;
     var horaAlvo = document.getElementById('horaPontualBusca').value;
     var resultadoEl = document.getElementById('resultadoPontual');
 
-    if (!dataAlvo || !horaAlvo) {
-        resultadoEl.innerHTML = '<p style="color:#ff6666;">Selecione a data e o horário para localizar o veículo.</p>';
-        return;
-    }
+    if (!dataAlvo || !horaAlvo) return;
 
     var btn = document.getElementById('btnLocalizarMomento');
     btn.disabled = true;
-    btn.textContent = "Localizando...";
-    document.getElementById('conexaoStatus').textContent = "Buscando momento exato...";
-    resultadoEl.innerHTML = '<p style="color:#888;">Buscando registros do dia...</p>';
+    btn.textContent = "Buscando...";
 
     var partesHoraAlvo = horaAlvo.split(':');
     var dataHoraAlvoObj = new Date(dataAlvo + 'T00:00:00');
-    dataHoraAlvoObj.setHours(Number(partesHoraAlvo[0]) || 0, Number(partesHoraAlvo[1]) || 0, 0, 0);
+    dataHoraAlvoObj.setHours(Number(partesHoraAlvo[0]), Number(partesHoraAlvo[1]), 0, 0);
     var tsAlvo = dataHoraAlvoObj.getTime();
 
-    if (firebaseRefMomento) firebaseRefMomento.off();
-    firebaseRefMomento = db.ref('veiculos/' + vID + '/historico').limitToLast(3000);
-
-    firebaseRefMomento.once('value').then(function (snapshot) {
+    db.ref('veiculos/' + vID + '/historico').limitToLast(2000).once('value').then(function(snapshot) {
         var pontosDoDia = [];
-
-        snapshot.forEach(function (childSnapshot) {
-            var ponto = normalizarLog(childSnapshot.val());
-            if (!ponto || !ponto.dataISO || ponto.dataISO !== dataAlvo) return;
-            pontosDoDia.push(ponto);
+        snapshot.forEach(function(child) {
+            var p = normalizarLog(child.val());
+            if (p && p.dataISO === dataAlvo) pontosDoDia.push(p);
         });
 
-        pontosDoDia.sort(function (a, b) { return (a.tsMs || 0) - (b.tsMs || 0); });
-
         if (pontosDoDia.length === 0) {
-            resultadoEl.innerHTML = '<p style="color:#ff6666;">Nenhum registro encontrado para esta data.</p>';
-            document.getElementById('conexaoStatus').textContent = "Sem dados";
-            rotaDoDiaPolyline.setLatLngs([]);
-            btn.disabled = false;
-            btn.textContent = "Localizar Neste Momento";
+            resultadoEl.innerHTML = '<p style="color:#ff3333;">Nenhum registro nesta data.</p>';
+            btn.disabled = false; btn.textContent = "Localizar Neste Momento";
             return;
         }
 
-        // Desenha o trajeto completo do dia em segundo plano, como contexto visual
-        rotaDoDiaPolyline.setLatLngs(pontosDoDia.map(function (p) { return [p.lat, p.lon]; }));
+        rotaDoDiaPolyline.setLatLngs(pontosDoDia.map(p => [p.lat, p.lon]));
 
-        // Encontra o ponto com horário mais próximo do solicitado
         var maisProximo = pontosDoDia[0];
-        var menorDiferenca = Math.abs((maisProximo.tsMs !== null ? maisProximo.tsMs : tsAlvo) - tsAlvo);
-
-        pontosDoDia.forEach(function (p) {
-            if (p.tsMs === null) return;
+        var menorDiferenca = Math.abs(maisProximo.tsMs - tsAlvo);
+        pontosDoDia.forEach(p => {
             var diff = Math.abs(p.tsMs - tsAlvo);
-            if (diff < menorDiferenca) {
-                menorDiferenca = diff;
-                maisProximo = p;
-            }
+            if (diff < menorDiferenca) { menorDiferenca = diff; maisProximo = p; }
         });
 
         if (!pontoExatoMarker) {
@@ -569,141 +516,79 @@ function localizarMomentoExato() {
             pontoExatoMarker.setLatLng([maisProximo.lat, maisProximo.lon]);
         }
 
-        map.flyTo([maisProximo.lat, maisProximo.lon], 17, { duration: 0.8 });
-
+        map.flyTo([maisProximo.lat, maisProximo.lon], 17);
         var diferencaMin = Math.round(menorDiferenca / 60000);
-        var textoDiferenca = diferencaMin === 0
-            ? "horário exato encontrado no histórico"
-            : ("ponto mais próximo encontrado: diferença de " + diferencaMin + " min em relação ao horário pesquisado");
-
-        var dataFormatada = maisProximo.dataISO.split('-').reverse().join('/');
-
-        resultadoEl.innerHTML =
-            '<p><strong>Veículo localizado:</strong><br>' + dataFormatada + ' às ' + (maisProximo.hora || '-') + '</p>' +
-            '<p style="color:#888;font-size:0.8em;margin-top:6px;">' + textoDiferenca + '</p>';
-
-        pontoExatoMarker.bindPopup('<b>Veículo em ' + (maisProximo.hora || '-') + '</b><br>Buscando endereço...').openPopup();
-
-        // Atualiza as métricas com os dados do ponto encontrado
-        document.getElementById('adm-vel').textContent = (maisProximo.velocidade || 0) + " km/h";
-        document.getElementById('adm-acc').textContent = (maisProximo.acuracia || 0) + " m";
-        document.getElementById('adm-time').textContent = dataFormatada + " " + (maisProximo.hora || "");
-
-        // Busca o endereço completo do ponto exato e exibe no popup/marcador correspondente
-        traduzirCoordenadasParaEnderecoCompleto(
-            maisProximo.lat, maisProximo.lon,
-            pontoExatoMarker,
-            'Veículo em ' + (maisProximo.hora || '-')
-        );
-
-        document.getElementById('conexaoStatus').textContent = "Pronto";
-        btn.disabled = false;
-        btn.textContent = "Localizar Neste Momento";
-    }).catch(function (err) {
-        console.error(err);
-        resultadoEl.innerHTML = '<p style="color:#ff6666;">Erro ao buscar dados no servidor.</p>';
-        document.getElementById('conexaoStatus').textContent = "Erro";
-        btn.disabled = false;
-        btn.textContent = "Localizar Neste Momento";
+        resultadoEl.innerHTML = `<p><strong>Localizado:</strong> às ${maisProximo.hora}<br><span style="font-size:0.8em;color:#888;">Proximidade: ${diferencaMin} min da busca</span></p>`;
+        
+        traduzirCoordenadasParaEnderecoCompleto(maisProximo.lat, maisProximo.lon, pontoExatoMarker, `Encontrado às ${maisProximo.hora}`);
+        btn.disabled = false; btn.textContent = "Localizar Neste Momento";
     });
 }
 
-// ═══════════════════════════════════════════════════
-//  SISTEMA DE CONSULTA POR MÊS, DATAS (DE / ATÉ) E HORAS
-// ═══════════════════════════════════════════════════
+// BUSCA POR INTERVALO E CARREGAMENTO DA TIMELINE SLIDER
 function aplicarFiltrosEBuscar() {
     var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
-    var mesFiltro = document.getElementById('filtroMes').value;
     var dataInicioFiltro = document.getElementById('filtroDataInicio').value;
     var dataFimFiltro = document.getElementById('filtroDataFim').value;
-    var horaIn = document.getElementById('filtroHoraInicio').value || '00:00';
-    var horaFim = document.getElementById('filtroHoraFim').value || '23:59';
+    var horaIn = document.getElementById('filtroHoraInicio').value;
+    var horaFim = document.getElementById('filtroHoraFim').value;
 
     var btn = document.getElementById('btnFiltrar');
-    btn.disabled = true;
-    btn.textContent = "Filtrando...";
-    document.getElementById('conexaoStatus').textContent = "Buscando registros...";
+    btn.disabled = true; btn.textContent = "Filtrando...";
 
-    if (firebaseRefHistorico) firebaseRefHistorico.off();
-
-    // Puxa histórico para validação e cruzamento
-    firebaseRefHistorico = db.ref('veiculos/' + vID + '/historico').limitToLast(1000);
-    
-    firebaseRefHistorico.once('value').then(function(snapshot) {
+    db.ref('veiculos/' + vID + '/historico').limitToLast(1500).once('value').then(function(snapshot) {
         var pontosFiltrados = [];
-        var ultimoPontoValido = null;
+        logsFiltradosGlobais = [];
 
-        snapshot.forEach(function(childSnapshot) {
-            var log = normalizarLog(childSnapshot.val());
+        snapshot.forEach(function(child) {
+            var log = normalizarLog(child.val());
             if (!log) return;
 
-            // Filtro 1: Mês Específico
-            if (mesFiltro && log.dataISO) {
-                var mesDoLog = log.dataISO.split('-')[1];
-                if (mesDoLog !== mesFiltro) return;
-            }
-
-            // Filtro 2: Validação por Janela de Datas (De / Até)
-            if (log.dataISO) {
-                if (dataInicioFiltro && log.dataISO < dataInicioFiltro) return;
-                if (dataFimFiltro && log.dataISO > dataFimFiltro) return;
-            }
-
-            // Filtro 3: Janela de Horários
+            if (dataInicioFiltro && log.dataISO < dataInicioFiltro) return;
+            if (dataFimFiltro && log.dataISO > dataFimFiltro) return;
             if (log.hora) {
-                var apenasHoraMinuto = log.hora.substring(0, 5);
-                if (apenasHoraMinuto < horaIn || apenasHoraMinuto > horaFim) return;
+                var hm = log.hora.substring(0, 5);
+                if (hm < horaIn || hm > horaFim) return;
             }
 
+            logsFiltradosGlobais.push(log);
             pontosFiltrados.push([log.lat, log.lon]);
-            ultimoPontoValido = log;
         });
 
         document.getElementById('adm-pts').textContent = pontosFiltrados.length;
 
         if (pontosFiltrados.length > 0) {
-            // Desenha rota imediata direta
             rotaVerdePolyline.setLatLngs(pontosFiltrados);
-            
-            var ultimaCoordenada = pontosFiltrados[pontosFiltrados.length - 1];
-            adminMarker.setLatLng(ultimaCoordenada);
             map.fitBounds(rotaVerdePolyline.getBounds(), { padding: [40, 40] });
-
-            // Alinha perfeitamente nas ruas através da amostragem do OSRM
             processarERealinharRotaPelasRuas(pontosFiltrados);
 
-            // Dados rápidos e telemetria
-            document.getElementById('adm-vel').textContent = (ultimoPontoValido.velocidade || 0) + " km/h";
-            document.getElementById('adm-acc').textContent = (ultimoPontoValido.acuracia || 0) + " m";
-            document.getElementById('adm-time').textContent = (ultimoPontoValido.dataISO ? ultimoPontoValido.dataISO.split('-').reverse().join('/') : "") + " " + (ultimoPontoValido.hora || "");
-            
-            // Faz a chamada para retornar o endereço completo extenso
-            traduzirCoordenadasParaEnderecoCompleto(ultimoPontoValido.lat, ultimoPontoValido.lon, adminMarker, 'Última Parada Identificada');
+            // Libera e configura a barra de rolagem
+            var slider = document.getElementById('timelineSlider');
+            slider.disabled = false;
+            slider.min = 0;
+            slider.max = logsFiltradosGlobais.length - 1;
+            slider.value = 0;
+
+            document.getElementById('tempoInicioRoteiro').textContent = logsFiltradosGlobais[0].hora.substring(0,5);
+            document.getElementById('tempoFimRoteiro').textContent = logsFiltradosGlobais[logsFiltradosGlobais.length - 1].hora.substring(0,5);
+
+            navegarLinhaTempo(0);
             document.getElementById('conexaoStatus').textContent = "Pronto";
         } else {
             rotaVerdePolyline.setLatLngs([]);
-            document.getElementById('conexaoStatus').textContent = "Sem dados";
-            document.getElementById('addressDetails').innerHTML = `<p style="color: #ff3333;">Nenhum ponto registrado atende ao intervalo de busca configurado.</p>`;
+            document.getElementById('timelineSlider').disabled = true;
+            document.getElementById('addressDetails').innerHTML = `<p style="color:#ff3333;">Nenhum ponto no intervalo.</p>`;
         }
-
-        btn.disabled = false;
-        btn.textContent = "Pesquisar e Aplicar Rota";
-    }).catch(function(err) {
-        console.error(err);
-        btn.disabled = false;
-        btn.textContent = "Pesquisar e Aplicar Rota";
+        btn.disabled = false; btn.textContent = "Pesquisar e Aplicar Rota";
     });
 }
 
 window.onload = function() {
     initAdminMap();
-    
-    // Inicia os campos de data preenchidos com o dia de hoje por padrão
     var hoje = new Date().toISOString().slice(0, 10);
     document.getElementById('filtroDataInicio').value = hoje;
     document.getElementById('filtroDataFim').value = hoje;
     document.getElementById('dataPontual').value = hoje;
-    
     aplicarFiltrosEBuscar();
 };
 </script>
