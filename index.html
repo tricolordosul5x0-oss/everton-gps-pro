@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Everton GPS PRO</title>
+
+    <!-- PWA -->
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#121212">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="GPS PRO">
+    <link rel="apple-touch-icon" href="./icons/icon-192.png">
+    <link rel="icon" href="./icons/icon-192.png">
+
+    <!-- Leaflet via CDN (Ajustado para funcionar direto da internet sem precisar de pastas locais) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        :root {
+            --primary: #00ff88;
+            --bg: #121212;
+            --card: #1e1e1e;
+            --accent2: #00c8ff;
+            --warn: #ffaa00;
+            --danger: #ff4455;
+            --card2: #252525;
+            --radius: 12px;
+            --stop-color: #ff6b35;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { margin:0; padding:10px; background:var(--bg); color:white; font-family:'Segoe UI',Arial,sans-serif; }
+
+        header {
+            background:var(--card); padding:15px; border-bottom:2px solid var(--primary);
+            text-align:center; margin-bottom:10px; border-radius:10px; position:relative; overflow:hidden;
+        }
+        header::before {
+            content:''; position:absolute; top:0; left:0; right:0; height:2px;
+            background:linear-gradient(90deg,transparent,var(--primary),var(--accent2),transparent);
+            animation:scanline 3s linear infinite;
+        }
+        @keyframes scanline { 0%{left:-100%} 100%{left:100%} }
+        .header-inner { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:center; -ms-flex-align:center; align-items:center; -webkit-box-pack:center; -ms-flex-pack:center; justify-content:center; gap:12px; }
+        .gps-signal { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:flex-end; -ms-flex-align:flex-end; align-items:flex-end; gap:3px; height:20px; }
+        .gps-signal span { width:4px; border-radius:2px; background:#333; }
+        .gps-signal span:nth-child(1){height:5px} .gps-signal span:nth-child(2){height:10px}
+        .gps-signal span:nth-child(3){height:15px} .gps-signal span:nth-child(4){height:20px}
+        .gps-signal.active span { background:var(--primary); animation:pulse-bar 1.4s ease-in-out infinite; }
+        .gps-signal.weak span   { background:var(--warn); }
+        @keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        #map { height:320px; width:100%; border-radius:10px; background:#252525; }
+        .map-wrapper { position:relative; }
+        .map-controls-overlay {
+            position:absolute; top:10px; right:10px; z-index:1000;
+            display:-webkit-box; display:-ms-flexbox; display:flex;
+            -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:6px;
+        }
+        .map-btn {
+            width:38px; height:38px; border-radius:8px;
+            background:rgba(30,30,30,.92); border:1px solid rgba(0,255,136,.3);
+            color:var(--primary); font-size:1.1em; cursor:pointer;
+            display:-webkit-box; display:-ms-flexbox; display:flex;
+            -webkit-box-align:center; -ms-flex-align:center; align-items:center;
+            -webkit-box-pack:center; -ms-flex-pack:center; justify-content:center; padding:0;
+        }
+        #cacheInfo { font-size:.7em; color:#555; font-family:monospace; text-align:center; padding:4px 0 0; letter-spacing:1px; }
+        #cacheInfo.cached { color:#00aa55; }
+
+        .controls { margin-top:15px; display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:10px; }
+        input, select {
+            padding:12px; border:1px solid #2a2a2a; border-radius:8px;
+            background:#252525; color:white; font-size:1em;
+            font-family:monospace; letter-spacing:1px; width:100%;
+            -webkit-appearance:none; -moz-appearance:none;
+        }
+        button#btnAtualizar {
+            padding:14px; border:none; border-radius:8px;
+            background:linear-gradient(135deg,#00ff88,#00c8ff); color:black;
+            font-weight:bold; cursor:pointer; font-size:1.1em; letter-spacing:2px;
+        }
+        button#btnAtualizar.loading { pointer-events:none; opacity:.7; }
+
+        .metrics-grid { display:-webkit-box; display:-ms-flexbox; display:flex; -ms-flex-wrap:wrap; flex-wrap:wrap; gap:8px; }
+        .metric-card {
+            background:var(--card2); border-radius:var(--radius); padding:12px 14px;
+            border:1px solid #2a2a2a;
+            -webkit-box-flex:1; -ms-flex:1 1 calc(50% - 4px); flex:1 1 calc(50% - 4px);
+            min-width:120px;
+        }
+        .metric-card.stopped { border-color:var(--stop-color); }
+        .metric-label { font-size:.68em; color:#888; text-transform:uppercase; letter-spacing:1px; font-family:monospace; }
+        .metric-value { font-size:1.5em; font-weight:700; color:var(--primary); }
+        .metric-unit  { font-size:.65em; color:#666; font-family:monospace; }
+
+        .status-box {
+            background:#252525; padding:20px 15px 15px; border-radius:8px;
+            border:1px solid #2a2a2a; line-height:1.8; font-size:1em; position:relative;
+        }
+        .status-label-tag {
+            position:absolute; top:-10px; left:12px; background:var(--card2);
+            padding:1px 8px; font-size:.68em; color:var(--primary);
+            border:1px solid rgba(0,255,136,.4); border-radius:4px; font-family:monospace;
+        }
+        .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#444; margin-right:6px; vertical-align:middle; }
+        .status-dot.active { background:var(--primary); }
+        .status-dot.warn   { background:var(--warn); }
+        .status-dot.error  { background:var(--danger); }
+        .status-dot.stop   { background:var(--stop-color); }
+
+        .error-log {
+            background:#3a1a1a; border:1px solid #ff4444; color:#ff9999;
+            padding:10px; border-radius:8px; display:none; font-size:.85em;
+            font-family:monospace; max-height:120px; overflow-y:auto;
+        }
+
+        #offlineBadge {
+            display:none; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:8px;
+            background:#2a1a00; border:1px solid var(--warn); color:var(--warn);
+            border-radius:8px; padding:10px 14px; font-size:.82em;
+            font-family:monospace; letter-spacing:1px;
+        }
+        #offlineBadge.visible { display:-webkit-box; display:-ms-flexbox; display:flex; }
+        #offlineBadge .badge-dot {
+            width:8px; height:8px; border-radius:50%; background:var(--warn);
+            -ms-flex-negative:0; flex-shrink:0; animation:pulse-bar 1s ease-in-out infinite;
+        }
+        #pendingCount {
+            margin-left:auto; background:rgba(255,170,0,.15);
+            border:1px solid rgba(255,170,0,.4); border-radius:4px; padding:1px 7px;
+        }
+
+        #stopBadge {
+            display:none; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:10px;
+            background:#2a1200; border:1px solid var(--stop-color); color:var(--stop-color);
+            border-radius:8px; padding:12px 14px; font-size:.85em;
+            font-family:monospace; letter-spacing:1px;
+            animation:stopPulse 2s ease-in-out infinite;
+        }
+        #stopBadge.visible { display:-webkit-box; display:-ms-flexbox; display:flex; }
+        @keyframes stopPulse {
+            0%,100%{border-color:var(--stop-color)}
+            50%{border-color:#ff9060}
+        }
+        .stop-icon { font-size:1.4em; -ms-flex-negative:0; flex-shrink:0; animation:pulse-bar 1.5s ease-in-out infinite; }
+        .stop-info { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:2px; -webkit-box-flex:1; -ms-flex:1; flex:1; }
+        .stop-title { font-weight:700; font-size:.9em; letter-spacing:2px; }
+        .stop-detail { font-size:.75em; color:#ffaa80; }
+        #stopTimer {
+            background:rgba(255,107,53,.15); border:1px solid rgba(255,107,53,.4);
+            border-radius:4px; padding:2px 8px; font-size:1em; font-weight:700; white-space:nowrap;
+        }
+
+        #historicoPanel {
+            background:var(--card); border-radius:var(--radius);
+            border:1px solid #2a2a2a; overflow:hidden;
+        }
+        .hist-header {
+            display:-webkit-box; display:-ms-flexbox; display:flex;
+            -webkit-box-align:center; -ms-flex-align:center; align-items:center;
+            -webkit-box-pack:justify; -ms-flex-pack:justify; justify-content:space-between;
+            padding:12px 14px; background:#1a1a1a; border-bottom:1px solid #2a2a2a;
+            cursor:pointer; -webkit-user-select:none; -moz-user-select:none; user-select:none;
+        }
+        .hist-header-left { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:8px; font-size:1.05em; font-weight:700; letter-spacing:2px; color:var(--primary); }
+        .hist-toggle { color:#666; font-size:.8em; }
+        .hist-body { display:none; padding:12px; }
+        .hist-body.open { display:block; }
+
+        .hist-filters {
+            display:-webkit-box; display:-ms-flexbox; display:flex; gap:8px; margin-bottom:10px; -ms-flex-wrap:wrap; flex-wrap:wrap;
+        }
+        .hist-filters > div { -webkit-box-flex:1; -ms-flex:1 1 calc(50% - 4px); flex:1 1 calc(50% - 4px); }
+        .hist-filters-row {
+            display:-webkit-box; display:-ms-flexbox; display:flex; gap:8px; margin-bottom:10px; -ms-flex-wrap:wrap; flex-wrap:wrap;
+        }
+        .hist-filters-row > div { -webkit-box-flex:1; -ms-flex:1 1 calc(33% - 6px); flex:1 1 calc(33% - 6px); }
+        .hist-filters input, .hist-filters-row input, .hist-filters-row select { padding:8px 6px; font-size:.82em; }
+
+        .btn-buscar {
+            width:100%; padding:10px; border:none; border-radius:8px;
+            background:linear-gradient(135deg,#00cc66,#0099cc); color:black;
+            font-weight:700; cursor:pointer; font-size:1em; letter-spacing:2px; margin-bottom:10px;
+        }
+        .btn-buscar:disabled { opacity:.5; pointer-events:none; }
+
+        #histResultados {
+            max-height:340px; overflow-y:auto;
+            display:-webkit-box; display:-ms-flexbox; display:flex;
+            -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:6px;
+        }
+        .hist-item {
+            background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px;
+            padding:10px 12px; font-size:.82em; line-height:1.6;
+            cursor:pointer;
+        }
+        .hist-item.parada   { border-left:3px solid var(--stop-color); }
+        .hist-item.retomada { border-left:3px solid var(--accent2); }
+        .hist-item-hora { color:var(--primary); font-family:monospace; font-weight:700; font-size:.95em; }
+        .hist-item-end  { color:#ccc; }
+        .hist-item-meta { color:#666; font-size:.9em; }
+        .hist-item-tipo {
+            display:inline-block; padding:1px 6px; border-radius:3px; font-size:.8em; margin-left:6px;
+        }
+        .hist-item-tipo.parada   { background:rgba(255,107,53,.2); color:var(--stop-color); }
+        .hist-item-tipo.retomada { background:rgba(0,200,255,.15); color:var(--accent2); }
+        .hist-item-tipo.normal   { background:rgba(0,255,136,.1); color:var(--primary); }
+        .hist-empty {
+            text-align:center; color:#555; font-family:monospace;
+            font-size:.82em; padding:30px 0; letter-spacing:1px;
+        }
+        .hist-count {
+            font-size:.72em; color:#666; font-family:monospace;
+            text-align:right; padding:6px 0 2px; letter-spacing:1px;
+        }
+        #histMapBtn {
+            width:100%; padding:8px; border:1px solid rgba(0,255,136,.3); border-radius:8px;
+            background:transparent; color:var(--primary); cursor:pointer;
+            font-family:monospace; font-size:.8em; letter-spacing:1px;
+            margin-top:8px; display:none;
+        }
+        #histMapBtn.visible { display:block; }
+
+        #pwaInstallBtn {
+            display:none; width:100%; padding:10px; border:1px solid rgba(0,200,255,.4); border-radius:8px;
+            background:rgba(0,200,255,.08); color:var(--accent2); cursor:pointer;
+            font-family:monospace; font-size:.82em; letter-spacing:1px;
+        }
+        #pwaInstallBtn.visible { display:block; }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-inner">
+        <h2 style="margin:0;letter-spacing:3px;font-size:1.35em">&#128752; Everton GPS PRO</h2>
+        <div class="gps-signal" id="gpsSignal"><span></span><span></span><span></span><span></span></div>
+    </div>
+    <div style="font-size:.68em;color:#888;font-family:monospace;letter-spacing:2px;margin-top:4px">RASTREAMENTO EM TEMPO REAL</div>
+</header>
+
+<button id="pwaInstallBtn" onclick="instalarPWA()">&#11015; INSTALAR APP NA TELA INICIAL</button>
+
+<div class="map-wrapper">
+    <div id="map"></div>
+    <div class="map-controls-overlay">
+        <button class="map-btn" title="Centralizar"   onclick="centralizarMapa()">&#128205;</button>
+        <button class="map-btn" title="Limpar rota"   onclick="limparRota()">&#128465;</button>
+        <button class="map-btn" title="Cache offline" onclick="cachearAreaAtual()" id="btnCache">&#128190;</button>
+    </div>
+</div>
+<div id="cacheInfo">&#128506; TILES: carregando da internet</div>
+
+<div class="controls">
+    <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veiculo">
+
+    <div id="offlineBadge">
+        <span class="badge-dot"></span>
+        <span>MODO OFFLINE - Gravando localmente</span>
+        <span id="pendingCount">0 pendentes</span>
+    </div>
+
+    <div id="stopBadge">
+        <span class="stop-icon">P</span>
+        <div class="stop-info">
+            <span class="stop-title">VEICULO PARADO</span>
+            <span class="stop-detail" id="stopAddress">Calculando endereco...</span>
+        </div>
+        <span id="stopTimer">0:00</span>
+    </div>
+
+    <button id="btnAtualizar" onclick="atualizarLocalizacao()">&#128752; ATUALIZAR LOCALIZACAO</button>
+
+    <div class="metrics-grid" id="metricsGrid" style="display:none">
+        <div class="metric-card">
+            <div class="metric-label">Velocidade</div>
+            <div class="metric-value" id="mv-vel">0</div>
+            <div class="metric-unit">KM/H</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Precisao GPS</div>
+            <div class="metric-value" id="mv-acc">-</div>
+            <div class="metric-unit">METROS</div>
+        </div>
+        <div class="metric-card" id="mc-pts">
+            <div class="metric-label">Pontos</div>
+            <div class="metric-value" id="mv-pts">0</div>
+            <div class="metric-unit">REGISTROS</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Atualizacao</div>
+            <div class="metric-value" id="mv-time" style="font-size:1.1em">-</div>
+            <div class="metric-unit">HORARIO</div>
+        </div>
+    </div>
+
+    <div class="status-box">
+        <span class="status-label-tag">SISTEMA</span>
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Inicializando GPS...</span>
+    </div>
+
+    <div id="errorLog" class="error-log"></div>
+
+    <div id="historicoPanel">
+        <div class="hist-header" onclick="toggleHistorico()">
+            <div class="hist-header-left">HISTORICO DE REGISTROS</div>
+            <span class="hist-toggle" id="histToggleIcon">v</span>
+        </div>
+        <div class="hist-body" id="histBody">
+            <div class="hist-filters">
+                <div>
+                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">DATA INICIO</div>
+                    <input type="date" id="filtroDataInicio">
+                </div>
+                <div>
+                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">DATA FIM</div>
+                    <input type="date" id="filtroDataFim">
+                </div>
+            </div>
+            <div class="hist-filters-row">
+                <div>
+                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">HORA INICIO</div>
+                    <input type="time" id="filtroHoraInicio">
+                </div>
+                <div>
+                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">HORA FIM</div>
+                    <input type="time" id="filtroHoraFim">
+                </div>
+                <div>
+                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">TIPO</div>
+                    <select id="filtroTipo">
+                        <option value="">Todos</option>
+                        <option value="normal">Normal</option>
+                        <option value="parada_detectada">Paradas</option>
+                        <option value="retomada_movimento">Retomadas</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn-buscar" id="btnBuscarHistorico" onclick="buscarHistorico()">BUSCAR REGISTROS</button>
+            <div id="histCount" class="hist-count"></div>
+            <div id="histResultados"><div class="hist-empty">Use os filtros acima para buscar registros</div></div>
+            <button id="histMapBtn" onclick="mostrarRotaHistorico()">VER ROTA NO MAPA</button>
+        </div>
+    </div>
+
+</div>
+
+<!-- Leaflet via CDN (Ajustado) -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- Firebase COMPAT via CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  SERVICE WORKER + PWA INSTALL
+// ═══════════════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+        navigator.serviceWorker.register('./service-worker.js')
+            .catch(function(e) { console.warn('[SW] falhou ao registrar:', e); });
+    });
+}
+
+if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(function() {});
+}
+
+var deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    document.getElementById('pwaInstallBtn').classList.add('visible');
+});
+function instalarPWA() {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.finally(function() {
+        deferredInstallPrompt = null;
+        document.getElementById('pwaInstallBtn').classList.remove('visible');
+    });
+}
+window.addEventListener('appinstalled', function() {
+    document.getElementById('pwaInstallBtn').classList.remove('visible');
+});
+
+// ═══════════════════════════════════════════════════
+//  FIREBASE CONFIG
+// ═══════════════════════════════════════════════════
+var firebaseConfig = {
+    apiKey:            "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    authDomain:        "everton-gps.firebaseapp.com",
+    databaseURL:       "https://everton-gps-default-rtdb.firebaseio.com",
+    projectId:         "everton-gps",
+    storageBucket:     "everton-gps.appspot.com",
+    messagingSenderId: "688936933095",
+    appId:             "1:688936933095:web:5508a8e1008f1b4020a1db"
+};
+
+var db = null;
+try {
+    if (typeof firebase !== 'undefined') {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+    }
+} catch(e) {
+    console.warn('[Firebase] falhou, modo offline:', e.message);
+}
+
+// ═══════════════════════════════════════════════════
+//  DOM
+// ═══════════════════════════════════════════════════
+var statusText     = document.getElementById('statusText');
+var errorLog       = document.getElementById('errorLog');
+var offlineBadge   = document.getElementById('offlineBadge');
+var pendingCountEl = document.getElementById('pendingCount');
+var stopBadge      = document.getElementById('stopBadge');
+var stopTimerEl    = document.getElementById('stopTimer');
+var stopAddressEl  = document.getElementById('stopAddress');
+var mcPts          = document.getElementById('mc-pts');
+
+// ═══════════════════════════════════════════════════
+//  ESTADO
+// ═══════════════════════════════════════════════════
+var map, marcador, linhaRota = null, stopMarker = null;
+var historicoRota = [];
+var totalRegistros = 0;
+var historicoResultados = [];
+
+// ═══════════════════════════════════════════════════
+//  DETECÇÃO DE PARADA
+// ═══════════════════════════════════════════════════
+var STOP_RADIUS_M  = 30;
+var STOP_THRESHOLD = 120;
+var stopState = {
+    active:false, lat:null, lon:null, since:null,
+    alerted:false, address:'', timerInterval:null
+};
+
+function dist(la1, lo1, la2, lo2) {
+    var R = 6371000;
+    var dLat = (la2 - la1) * Math.PI / 180;
+    var dLon = (lo2 - lo1) * Math.PI / 180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
+            Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*
+            Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function fmtDur(s) {
+    var m = Math.floor(s / 60);
+    var sec = Math.floor(s % 60);
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function iniciarTimerParada() {
+    if (stopState.timerInterval) clearInterval(stopState.timerInterval);
+    stopState.timerInterval = setInterval(function() {
+        if (!stopState.active || !stopState.since) return;
+        stopTimerEl.textContent = fmtDur((Date.now() - stopState.since) / 1000);
+    }, 1000);
+}
+
+function pararTimerParada() {
+    if (stopState.timerInterval) {
+        clearInterval(stopState.timerInterval);
+        stopState.timerInterval = null;
+    }
+}
+
+function avaliarParada(lat, lon, velocidade, callback) {
+    var vel = Number(velocidade);
+    if (!stopState.active) {
+        stopState.active = true;
+        stopState.lat = lat;
+        stopState.lon = lon;
+        stopState.since = Date.now();
+        stopState.alerted = false;
+    }
+
+    var d = dist(stopState.lat, stopState.lon, lat, lon);
+    var secsParado = (Date.now() - stopState.since) / 1000;
+
+    if (d > STOP_RADIUS_M || vel > 5) {
+        if (stopState.alerted) {
+            stopBadge.classList.remove('visible');
+            pararTimerParada();
+            if (stopMarker) { map.removeLayer(stopMarker); stopMarker = null; }
+            mcPts.classList.remove('stopped');
+            if (navigator.onLine && db) {
+                var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
+                db.ref('veiculos/' + vID + '/historico').push({
+                    tipo:'retomada_movimento', lat:lat, lon:lon,
+                    duracaoParadaSegundos:Math.round(secsParado),
+                    timestamp:Date.now(), hora:new Date().toLocaleTimeString(),
+                    data:new Date().toLocaleDateString('pt-BR'),
+                    dataISO:new Date().toISOString().slice(0,10)
+                });
+            }
+        }
+        stopState = {
+            active:true, lat:lat, lon:lon, since:Date.now(),
+            alerted:false, address:'', timerInterval:stopState.timerInterval
+        };
+        if (callback) callback();
+        return;
+    }
+
+    if (secsParado >= STOP_THRESHOLD && !stopState.alerted) {
+        stopState.alerted = true;
+        var endParada = lat.toFixed(5) + ', ' + lon.toFixed(5);
+
+        function finalizarParada(endStr) {
+            stopState.address = endStr;
+            stopAddressEl.textContent = endStr;
+            stopTimerEl.textContent = fmtDur(secsParado);
+            stopBadge.classList.add('visible');
+            mcPts.classList.add('stopped');
+            iniciarTimerParada();
+
+            if (stopMarker) map.removeLayer(stopMarker);
+            var stopIcon = L.divIcon({
+                className:'',
+                html:'<div style="background:#ff6b35;border:2px solid #fff;border-radius:50%;width:18px;height:18px"></div>',
+                iconSize:[18,18], iconAnchor:[9,9]
+            });
+            stopMarker = L.marker([lat, lon], {icon:stopIcon})
+                .bindPopup('<b>Parada</b><br>' + endStr + '<br>' + fmtDur(secsParado))
+                .addTo(map).openPopup();
+
+            if (navigator.onLine && db) {
+                var vID2 = document.getElementById('veiculoID').value || 'VEICULO-01';
+                db.ref('veiculos/' + vID2 + '/historico').push({
+                    tipo:'parada_detectada', lat:lat, lon:lon, endereco:endStr,
+                    duracaoSegundos:Math.round(secsParado),
+                    timestamp:Date.now(), hora:new Date().toLocaleTimeString(),
+                    data:new Date().toLocaleDateString('pt-BR'),
+                    dataISO:new Date().toISOString().slice(0,10)
+                });
+            }
+
+            document.getElementById('statusDot').className = 'status-dot stop';
+            statusText.innerHTML = 'PARADO ha ' + fmtDur(secsParado) + '<br>' + endStr;
+            if (callback) callback();
+        }
+
+        if (navigator.onLine) {
+            buscarEndereco(lat, lon, function(end) {
+                if (end) endParada = end.rua + ', ' + end.bairro + ' - ' + end.cidade;
+                finalizarParada(endParada);
+            });
+        } else {
+            finalizarParada(endParada);
+        }
+        return;
+    }
+
+    if (callback) callback();
+}
+
+// ═══════════════════════════════════════════════════
+//  INDEXEDDB
+// ═══════════════════════════════════════════════════
+var IDB_NAME = 'gps_offline';
+var STORE    = 'fila';
+
+function abrirIDB(cb) {
+    try {
+        var req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = function(e) {
+            var idb = e.target.result;
+            if (!idb.objectStoreNames.contains(STORE)) {
+                idb.createObjectStore(STORE, {autoIncrement:true});
+            }
+        };
+        req.onsuccess = function(e) { cb(null, e.target.result); };
+        req.onerror   = function(e) { cb(e.target.error, null); };
+    } catch(e) { cb(e, null); }
+}
+
+function salvarNaFila(dados, cb) {
+    abrirIDB(function(err, idb) {
+        if (err) { if (cb) cb(err); return; }
+        var tx = idb.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).add(dados);
+        tx.oncomplete = function() { if (cb) cb(null); };
+        tx.onerror    = function() { if (cb) cb(tx.error); };
+    });
+}
+
+function lerTodasChaves(cb) {
+    abrirIDB(function(err, idb) {
+        if (err) { cb(err, []); return; }
+        var tx  = idb.transaction(STORE, 'readonly');
+        var req = tx.objectStore(STORE).getAllKeys();
+        req.onsuccess = function() { cb(null, req.result); };
+        req.onerror   = function() { cb(req.error, []); };
+    });
+}
+
+function lerItem(idb, chave, cb) {
+    var tx  = idb.transaction(STORE, 'readonly');
+    var req = tx.objectStore(STORE).get(chave);
+    req.onsuccess = function() { cb(null, req.result); };
+    req.onerror   = function() { cb(req.error, null); };
+}
+
+function removerDaFila(chave, cb) {
+    abrirIDB(function(err, idb) {
+        if (err) { if (cb) cb(err); return; }
+        var tx = idb.transaction(STORE, 'readwrite');
+        tx.objectStore(STORE).delete(chave);
+        tx.oncomplete = function() { if (cb) cb(null); };
+        tx.onerror    = function() { if (cb) cb(tx.error); };
+    });
+}
+
+function contarFila(cb) {
+    lerTodasChaves(function(err, keys) { cb(err ? 0 : keys.length); });
+}
+
+function atualizarBadge() {
+    contarFila(function(n) {
+        if (!navigator.onLine || n > 0) {
+            offlineBadge.classList.add('visible');
+            pendingCountEl.textContent = n + (n !== 1 ? ' pendentes' : ' pendente');
+        } else {
+            offlineBadge.classList.remove('visible');
+        }
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  SINCRONIZAÇÃO
+// ═══════════════════════════════════════════════════
+var sincronizando = false;
+
+function sincronizarFila() {
+    if (sincronizando || !navigator.onLine || !db) return;
+    sincronizando = true;
+
+    lerTodasChaves(function(err, chaves) {
+        if (err || !chaves.length) { sincronizando = false; return; }
+
+        abrirIDB(function(idbErr, idb) {
+            if (idbErr) { sincronizando = false; return; }
+            var idx = 0;
+            var sincronizados = 0;
+
+            function processarProximo() {
+                if (idx >= chaves.length) {
+                    sincronizando = false;
+                    atualizarBadge();
+                    if (sincronizados > 0) {
+                        statusText.textContent = sincronizados + ' registros sincronizados!';
+                    }
+                    return;
+                }
+
+                var chave = chaves[idx++];
+                lerItem(idb, chave, function(err2, item) {
+                    if (err2 || !item) { processarProximo(); return; }
+
+                    var vID   = item.vID || document.getElementById('veiculoID').value || 'VEICULO-01';
+                    var dados = item.dados;
+
+                    if (!dados.dataISO && dados.timestamp) {
+                        var d = new Date(dados.timestamp);
+                        dados.dataISO = d.toISOString().slice(0, 10);
+                        dados.data    = d.toLocaleDateString('pt-BR');
+                        dados.hora    = dados.hora || d.toLocaleTimeString();
+                    }
+
+                    function enviarParaFirebase() {
+                        db.ref('veiculos/' + vID + '/historico').push(dados)
+                            .then(function() {
+                                removerDaFila(chave, function() {
+                                    sincronizados++;
+                                    setTimeout(processarProximo, 1100);
+                                });
+                            })
+                            .catch(function() { processarProximo(); });
+                    }
+
+                    if (!dados.endereco && dados.lat && dados.lon && navigator.onLine) {
+                        buscarEndereco(dados.lat, dados.lon, function(end) {
+                            if (end) {
+                                dados.endereco = end;
+                                dados.enderecoCompleto = end.rua + ', ' + end.bairro + ' - ' + end.cidade + '/' + end.uf;
+                            }
+                            enviarParaFirebase();
+                        });
+                    } else {
+                        enviarParaFirebase();
+                    }
+                });
+            }
+            processarProximo();
+        });
+    });
+}
+
+window.addEventListener('online',  function() { atualizarBadge(); sincronizarFila(); });
+window.addEventListener('offline', function() { atualizarBadge(); });
+
+// ═══════════════════════════════════════════════════
+//  MAPA
+// ═══════════════════════════════════════════════════
+var carroIconeHTML =
+    '<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;' +
+    'background:#00ff88;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.5)">' +
+    '<svg width="18" height="18" viewBox="0 0 24 24" fill="#121212">' +
+    '<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5A1.5 1.5 0 0 1 21 12.5v4A1.5 1.5 0 0 1 19.5 18H19a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0h-.5A1.5 1.5 0 0 1 3 16.5v-4A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1-3H8.1l-1 3zM7 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>' +
+    '</svg></div>';
+
+var carroIcone = L.divIcon({
+    className:'',
+    html: carroIconeHTML,
+    iconSize:[34,34], iconAnchor:[17,17]
+});
+
+function initMap() {
+    map = L.map('map', {
+        zoomControl: true,
+        attributionControl: false
+    }).setView([-23.5505, -46.6333], 16);
+
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution:'© OpenStreetMap',
+        maxZoom:19
+    }).addTo(map);
+
+    marcador = L.marker([-23.5505, -46.6333], {icon:carroIcone}).addTo(map);
+}
+
+initMap();
+
+// ═══════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════
+function mostrarErro(origem, msg) {
+    errorLog.style.display = 'block';
+    errorLog.innerHTML += '[' +裝origem + '] ' + msg + '<br>';
+    document.getElementById('statusDot').className = 'status-dot error';
+    document.getElementById('gpsSignal').className = 'gps-signal';
+}
+
+function buscarEndereco(lat, lon, cb) {
+    if (!navigator.onLine) { cb(null); return; }
+    var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
+              lat + '&lon=' + lon + '&accept-language=pt-BR';
+
+    var xhr = new XMLHttpRequest();
+    var done = false;
+    var timer = setTimeout(function() {
+        if (!done) { done = true; xhr.abort(); cb(null); }
+    }, 8000);
+
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState !== 4 || done) return;
+        done = true;
+        clearTimeout(timer);
+        try {
+            var d = JSON.parse(xhr.responseText);
+            cb({
+                rua:    d.address.road || 'Rua nao identificada',
+                bairro: d.address.suburb || d.address.neighbourhood || d.address.village || '',
+                cidade: d.address.city || d.address.town || d.address.municipality || '',
+                uf:     d.address.state || ''
+            });
+        } catch(e) { cb(null); }
+    };
+    xhr.onerror = function() {
+        if (!done) { done = true; clearTimeout(timer); cb(null); }
+    };
+    try {
+        xhr.open('GET', url, true);
+        xhr.send();
+    } catch(e) { done = true; clearTimeout(timer); cb(null); }
+}
+
+function atualizarMapaLocal(dados, vID, endereco) {
+    var pos = [dados.lat, dados.lon];
+    historicoRota.push(pos);
+    if (historicoRota.length > 50) historicoRota.shift();
+    marcador.setLatLng(pos);
+    map.flyTo(pos, 17);
+    if (linhaRota) map.removeLayer(linhaRota);
+    linhaRota = L.polyline(historicoRota, {color:'#00ff88', weight:5, opacity:.8}).addTo(map);
+
+    var endComp = endereco
+        ? (endereco.rua + ', ' + endereco.bairro + ' - ' + endereco.cidade + '/' + endereco.uf)
+        : (dados.lat.toFixed(5) + ', ' + dados.lon.toFixed(5));
+
+    marcador.bindPopup('<b>' + vID + '</b><br>' + endComp + '<br>' + dados.velocidade + ' km/h').openPopup();
+
+    totalRegistros++;
+    document.getElementById('metricsGrid').style.display = 'flex';
+    document.getElementById('mv-vel').textContent  = dados.velocidade;
+    document.getElementById('mv-acc').textContent  = dados.acuracia;
+    document.getElementById('mv-pts').textContent  = totalRegistros;
+    document.getElementById('mv-time').textContent = dados.hora;
+
+    document.getElementById('statusDot').className = 'status-dot active';
+    var sig = document.getElementById('gpsSignal');
+    sig.className = 'gps-signal ' + (Number(dados.acuracia) <= 40 ? 'active' : 'weak');
+
+    return endComp;
+}
+
+// ═══════════════════════════════════════════════════
+//  ENVIO
+// ═══════════════════════════════════════════════════
+function enviarDados(dados) {
+    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
+    var agora = new Date();
+    dados.dataISO = agora.toISOString().slice(0, 10);
+    dados.data    = agora.toLocaleDateString('pt-BR');
+    dados.tipo    = dados.tipo || 'normal';
+
+    function continuar(endereco) {
+        var endComp = atualizarMapaLocal(dados, vID, endereco);
+
+        avaliarParada(dados.lat, dados.lon, dados.velocidade, function() {
+            if (navigator.onLine && db) {
+                db.ref('veiculos/' + vID + '/atual').set(dados);
+                db.ref('veiculos/' + vID + '/historico').push(dados)
+                    .then(function() {
+                        if (!stopState.alerted) {
+                            statusText.innerHTML = 'Transmitindo!<br>' + endComp + '<br>' +
+                                dados.velocidade + ' km/h | ' + dados.acuracia + 'm';
+                        }
+                        sincronizarFila();
+                    })
+                    .catch(function(e) { mostrarErro('Firebase', e.message); });
+            } else {
+                salvarNaFila({vID:vID, dados:dados}, function(err) {
+                    if (err) { mostrarErro('IndexedDB', err.message); return; }
+                    if (!stopState.alerted) {
+                        statusText.innerHTML = 'Sem internet - salvo localmente.<br>' +
+                            dados.lat.toFixed(5) + ', ' + dados.lon.toFixed(5) + '<br>' +
+                            dados.velocidade + ' km/h';
+                    }
+                    atualizarBadge();
+                });
+            }
+        });
+    }
+
+    if (navigator.onLine) {
+        statusText.textContent = 'Buscando endereco...';
+        buscarEndereco(dados.lat, dados.lon, function(end) {
+            if (end) {
+                dados.endereco         = end;
+                dados.enderecoCompleto = end.rua + ', ' + end.bairro + ' - ' + end.cidade + '/' + end.uf;
+            }
+            continuar(end);
+        });
+    } else {
+        continuar(null);
+    }
+}
+
+function atualizarLocalizacao() {
+    var btn = document.getElementById('btnAtualizar');
+    if (btn) btn.classList.add('loading');
+
+    if (!navigator.geolocation) {
+        mostrarErro('GPS', 'Geolocalizacao nao disponivel.');
+        if (btn) btn.classList.remove('loading');
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        function(pos) {
+            if (btn) btn.classList.remove('loading');
+            enviarDados({
+                lat:       pos.coords.latitude,
+                lon:       pos.coords.longitude,
+                hora:      new Date().toLocaleTimeString(),
+                timestamp: Date.now(),
+                acuracia:  Number(pos.coords.accuracy).toFixed(1),
+                velocidade: pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0
+            });
+        },
+        function(err) {
+            if (btn) btn.classList.remove('loading');
+            mostrarErro('GPS', 'Erro ' + err.code + ': ' + err.message);
+        },
+        {enableHighAccuracy:true, maximumAge:10000, timeout:20000}
+    );
+}
+
+function centralizarMapa() {
+    if (historicoRota.length > 0) {
+        map.flyTo(historicoRota[historicoRota.length - 1], 17);
+    }
+}
+
+function limparRota() {
+    historicoRota = [];
+    if (linhaRota) map.removeLayer(linhaRota);
+    statusText.textContent = 'Rota limpa localmente.';
+}
+
+// ═══════════════════════════════════════════════════
+//  CACHE
+// ═══════════════════════════════════════════════════
+var TILES_CACHE_NAME = 'gps-tiles-v1';
+
+function latLonToTile(lat, lon, z) {
+    var n = Math.pow(2, z);
+    return {
+        x: Math.floor((lon + 180) / 360 * n),
+        y: Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n)
+    };
+}
+
+function cachearAreaAtual() {
+    if (!map) return;
+    var btn  = document.getElementById('btnCache');
+    var info = document.getElementById('cacheInfo');
+    btn.textContent = '...'; btn.disabled = true;
+    info.textContent = '📡 baixando tiles para uso offline...';
+    info.className = '';
+
+    var center = map.getCenter();
+    var zoom   = map.getZoom();
+    var urls   = [];
+
+    for (var z = Math.max(13, zoom - 3); z <= Math.min(19, zoom + 2); z++) {
+        var t = latLonToTile(center.lat, center.lng, z);
+        for (var dx = -3; dx <= 3; dx++) {
+            for (var dy = -3; dy <= 3; dy++) {
+                var tx  = t.x + dx;
+                var ty  = t.y + dy;
+                urls.push('https://tile.openstreetmap.org/' + z + '/' + tx + '/' + ty + '.png');
+            }
+        }
+    }
+
+    function finalizar(ok, falhas) {
+        btn.textContent = '✅';
+        setTimeout(function() { btn.textContent = '💾'; btn.disabled = false; }, 2000);
+        info.textContent = ok + ' tiles salvos p/ uso offline' + (falhas ? ' (' + falhas + ' falharam)' : '');
+        info.className = 'cached';
+    }
+
+    if (!('caches' in window)) {
+        urls.forEach(function(u) { var img = new Image(); img.src = u; });
+        setTimeout(function() { finalizar(urls.length, 0); }, 2000);
+        return;
+    }
+
+    caches.open(TILES_CACHE_NAME).then(function(cache) {
+        var ok = 0, falhas = 0;
+        var tarefas = urls.map(function(u) {
+            return fetch(u, {mode:'no-cors'}).then(function(res) {
+                if (res) { cache.put(u, res.clone()); ok++; }
+                else falhas++;
+            }).catch(function() { falhas++; });
+        });
+        Promise.all(tarefas).then(function() { finalizar(ok, falhas); });
+    }).catch(function() {
+        urls.forEach(function(u) { var img = new Image(); img.src = u; });
+        setTimeout(function() { finalizar(urls.length, 0); }, 2000);
+    });
+}
+
+// ═══════════════════════════════════════════════════
+//  HISTÓRICO
+// ═══════════════════════════════════════════════════
+function toggleHistorico() {
+    var body = document.getElementById('histBody');
+    var icon = document.getElementById('histToggleIcon');
+    var isOpen = body.classList.contains('open');
+    if (isOpen) {
+        body.classList.remove('open');
+        icon.textContent = 'v';
+    } else {
+        body.classList.add('open');
+        icon.textContent = '^';
+        if (!document.getElementById('filtroDataInicio').value) {
+            var hoje = new Date().toISOString().slice(0, 10);
+            document.getElementById('filtroDataInicio').value = hoje;
+            document.getElementById('filtroDataFim').value    = hoje;
+        }
+    }
+}
+
+function buscarHistorico() {
+    var btn = document.getElementById('btnBuscarHistorico');
+    btn.disabled = true; btn.textContent = 'Buscando...';
+
+    var resultado = document.getElementById('histResultados');
+    var countEl   = document.getElementById('histCount');
+    resultado.innerHTML = '<div class="hist-empty">Buscando registros...</div>';
+    countEl.textContent = '';
+    document.getElementById('histMapBtn').classList.remove('visible');
+
+    var dataInicio = document.getElementById('filtroDataInicio').value;
+    var dataFim    = document.getElementById('filtroDataFim').value;
+    var horaInicio = document.getElementById('filtroHoraInicio').value || '00:00';
+    var horaFim    = document.getElementById('filtroHoraFim').value   || '23:59';
+    var filtroTipo = document.getElementById('filtroTipo').value;
+    var vID        = document.getElementById('veiculoID').value || 'VEICULO-01';
+
+    if (!dataInicio) {
+        resultado.innerHTML = '<div class="hist-empty">Selecione ao menos a data inicio</div>';
+        btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS'; return;
+    }
+
+    var tsInicio = new Date(dataInicio + 'T' + horaInicio + ':00').getTime();
+    var tsFim    = new Date((dataFim || dataInicio) + 'T' + horaFim + ':59').getTime();
+
+    function renderizarResultados(registros) {
+        registros.sort(function(a, b) { return (a.timestamp || 0) - (b.timestamp || 0); });
+        historicoResultados = registros;
+
+        if (!registros.length) {
+            resultado.innerHTML = '<div class="hist-empty">Nenhum registro encontrado</div>';
+            countEl.textContent = '';
+            btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
+            return;
+        }
+
+        countEl.textContent = registros.length + ' registro(s) encontrado(s)';
+        resultado.innerHTML = '';
+
+        for (var i = 0; i < registros.length; i++) {
+            (function(d) {
+                var tipo = d.tipo || 'normal';
+                var tipoLabel = { parada_detectada:'parada', retomada_movimento:'retomada', normal:'normal' }[tipo] || 'normal';
+                var tipoEmoji = { parada_detectada:'P', retomada_movimento:'>', normal:'*' }[tipo] || '*';
+
+                var endStr = d.enderecoCompleto ||
+                    (d.endereco ? (d.endereco.rua + ', ' + d.endereco.bairro + ' - ' + d.endereco.cidade) :
+                    ((d.lat||0).toFixed(5) + ', ' + (d.lon||0).toFixed(5)));
+
+                var hora  = d.hora || new Date(d.timestamp || 0).toLocaleTimeString();
+                var data  = d.data || new Date(d.timestamp || 0).toLocaleDateString('pt-BR');
+                var extra = tipo === 'parada_detectada'
+                    ? ' · parado ' + fmtDur(d.duracaoSegundos || 0)
+                    : (tipo === 'retomada_movimento' ? ' · parado ' + fmtDur(d.duracaoParadaSegundos || 0) : '');
+
+                var el = document.createElement('div');
+                el.className = 'hist-item ' + tipoLabel;
+                el.innerHTML =
+                    '<div class="hist-item-hora">' + tipoEmoji + ' ' + hora +
+                    ' <span style="color:#555;font-size:.85em">· ' + data + '</span>' +
+                    '<span class="hist-item-tipo ' + tipoLabel + '">' + tipoLabel + '</span></div>' +
+                    '<div class="hist-item-end">' + endStr + '</div>' +
+                    '<div class="hist-item-meta">' + (d.velocidade||0) + ' km/h · ' + (d.acuracia||'?') + 'm' + extra + '</div>';
+
+                if (d.lat && d.lon) {
+                    el.onclick = function() {
+                        map.flyTo([d.lat, d.lon], 17);
+                        window.scrollTo({top:0, behavior:'smooth'});
+                    };
+                }
+                resultado.appendChild(el);
+            })(registros[i]);
+        }
+
+        if (registros.some(function(r) { return r.lat && r.lon; })) {
+            document.getElementById('histMapBtn').classList.add('visible');
+        }
+        btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
+    }
+
+    if (navigator.onLine && db) {
+        db.ref('veiculos/' + vID + '/historico')
+            .orderByChild('timestamp')
+            .startAt(tsInicio)
+            .endAt(tsFim)
+            .once('value')
+            .then(function(snap) {
+                var registros = [];
+                snap.forEach(function(child) {
+                    var d = child.val();
+                    if (!filtroTipo || d.tipo === filtroTipo || (!d.tipo && filtroTipo === 'normal')) {
+                        registros.push(d);
+                    }
+                });
+                renderizarResultados(registros);
+            })
+            .catch(function(e) {
+                resultado.innerHTML = '<div class="hist-empty" style="color:#ff9999">Erro: ' + e.message + '</div>';
+                btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
+            });
+    } else {
+        lerTodasChaves(function(err, chaves) {
+            if (err) { btn.disabled = false; return; }
+            abrirIDB(function(idbErr, idb) {
+                if (idbErr) { btn.disabled = false; return; }
+                var registros = [];
+                var idx = 0;
+                function proxima() {
+                    if (idx >= chaves.length) { renderizarResultados(registros); return; }
+                    lerItem(idb, chaves[idx++], function(err2, item) {
+                        if (item && item.dados) {
+                            var d = item.dados;
+                            if (d.timestamp >= tsInicio && d.timestamp <= tsFim) {
+                                if (!filtroTipo || d.tipo === filtroTipo || (!d.tipo && filtroTipo === 'normal')) {
+                                    registros.push(d);
+                                }
+                            }
+                        }
+                        proxima();
+                    });
+                }
+                proxima();
+            });
+        });
+    }
+}
+
+function mostrarRotaHistorico() {
+    var pontos = [];
+    for (var i = 0; i < historicoResultados.length; i++) {
+        var r = historicoResultados[i];
+        if (r.lat && r.lon) pontos.push([r.lat, r.lon]);
+    }
+    if (!pontos.length) return;
+    if (linhaRota) map.removeLayer(linhaRota);
+    linhaRota = L.polyline(pontos, {color:'#00c8ff', weight:4, opacity:.85, dashArray:'8,4'}).addTo(map);
+    map.fitBounds(linhaRota.getBounds(), {padding:[20,20]});
+    window.scrollTo({top:0, behavior:'smooth'});
+}
+
+// ═══════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════
+atualizarBadge();
+setInterval(atualizarLocalizacao, 8000);
+atualizarLocalizacao();
+setInterval(sincronizarFila, 30000);
+</script>
+</body>
+</html>
