@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Everton GPS - Admin Avançado</title>
+
+    <!-- Leaflet via CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <style>
+        :root {
+            --primary: #00ff88;
+            --bg: #121212;
+            --card: #1e1e1e;
+            --accent: #00c8ff;
+            --text: #ffffff;
+            --border: #2a2a2a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: var(--bg); 
+            color: var(--text);
+            padding: 20px;
+        }
+
+        header {
+            background: var(--card);
+            padding: 20px;
+            border-bottom: 2px solid var(--primary);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 992px) {
+            .panel-container {
+                grid-template-columns: 1fr 400px;
+            }
+        }
+
+        #map {
+            height: 620px;
+            width: 100%;
+            border-radius: 10px;
+            background: #252525;
+            border: 1px solid var(--border);
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 18px;
+        }
+
+        .card h3 {
+            color: var(--primary);
+            margin-bottom: 12px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .address-box p {
+            font-size: 0.95em;
+            line-height: 1.6;
+            color: #ddd;
+        }
+        
+        .address-box strong { color: var(--accent); }
+
+        .filter-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .filter-group label {
+            font-size: 0.75em;
+            color: #888;
+            font-family: monospace;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 10px;
+            background: #252525;
+            border: 1px solid var(--border);
+            color: white;
+            border-radius: 8px;
+            font-size: 0.9em;
+        }
+
+        button {
+            background: linear-gradient(135deg, #00ff88, #00c8ff);
+            color: black;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+            margin-top: 5px;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .metric {
+            background: #252525;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .metric-label { font-size: 0.65em; color: #888; text-transform: uppercase; }
+        .metric-value { font-size: 1.2em; font-weight: bold; color: var(--primary); margin-top: 2px; }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            background: #252525;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div>
+        <h2 style="letter-spacing: 2px;">⚡ Everton GPS - Admin Pro</h2>
+        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">FILTROS COMPLETOS POR INTERVALOS DE DATAS E ENDEREÇAMENTO INTEGRAÇÃO TOTAL</p>
+    </div>
+    <div class="status-badge" id="conexaoStatus">Inicializando...</div>
+</header>
+
+<div class="panel-container">
+    <div>
+        <div id="map"></div>
+    </div>
+
+    <div class="sidebar">
+        <!-- Filtros e Pesquisa Avançada -->
+        <div class="card">
+            <h3>Painel de Filtros Avançados</h3>
+            
+            <div class="filter-group" style="margin-bottom: 10px;">
+                <label>ID DO VEÍCULO</label>
+                <input type="text" id="veiculoIDAdmin" value="VEICULO-01">
+            </div>
+
+            <!-- Pesquisa por Mês Opcional -->
+            <div class="filter-group" style="margin-bottom: 10px;">
+                <label>MÊS ESPECÍFICO (OPCIONAL)</label>
+                <select id="filtroMes">
+                    <option value="">Qualquer Mês</option>
+                    <option value="01">Janeiro</option>
+                    <option value="02">Fevereiro</option>
+                    <option value="03">Março</option>
+                    <option value="04">Abril</option>
+                    <option value="05">Maio</option>
+                    <option value="06">Junho</option>
+                    <option value="07">Julho</option>
+                    <option value="08">Agosto</option>
+                    <option value="09">Setembro</option>
+                    <option value="10">Outubro</option>
+                    <option value="11">Novembro</option>
+                    <option value="12">Dezembro</option>
+                </select>
+            </div>
+
+            <!-- NOVA SEÇÃO: Pesquisa por Intervalo Completo de Datas -->
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>DATA INICIAL (DE)</label>
+                    <input type="date" id="filtroDataInicio">
+                </div>
+                <div class="filter-group">
+                    <label>DATA FINAL (ATÉ)</label>
+                    <input type="date" id="filtroDataFim">
+                </div>
+            </div>
+
+            <!-- Pesquisa por Horários -->
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label>HORA INICIAL (DE)</label>
+                    <input type="time" id="filtroHoraInicio" value="00:00">
+                </div>
+                <div class="filter-group">
+                    <label>HORA FINAL (ATÉ)</label>
+                    <input type="time" id="filtroHoraFim" value="23:59">
+                </div>
+            </div>
+
+            <button id="btnFiltrar" onclick="aplicarFiltrosEBuscar()">Pesquisar e Aplicar Rota</button>
+        </div>
+
+        <!-- Endereço Completo Formatado Extenso -->
+        <div class="card">
+            <h3>Endereço Completo Identificado</h3>
+            <div class="address-box" id="addressDetails">
+                <p>Aguardando coordenadas de pesquisa...</p>
+            </div>
+        </div>
+
+        <!-- Métricas -->
+        <div class="card">
+            <h3>Métricas do Percurso</h3>
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-label">Última Velocidade</div>
+                    <div class="metric-value" id="adm-vel">0 km/h</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Precisão do Sinal</div>
+                    <div class="metric-value" id="adm-acc">-</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Horário do Ponto</div>
+                    <div class="metric-value" id="adm-time" style="font-size: 0.95em;">-</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Pontos Tratados</div>
+                    <div class="metric-value" id="adm-pts">0</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet via CDN -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- Firebase COMPAT via CDN -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  CONFIGURAÇÃO FIREBASE
+// ═══════════════════════════════════════════════════
+var firebaseConfig = {
+    apiKey:            "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    authDomain:        "everton-gps.firebaseapp.com",
+    databaseURL:       "https://everton-gps-default-rtdb.firebaseio.com",
+    projectId:         "everton-gps",
+    storageBucket:     "everton-gps.appspot.com",
+    messagingSenderId: "688936933095",
+    appId:             "1:688936933095:web:5508a8e1008f1b4020a1db"
+};
+
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
+
+var map, adminMarker, rotaVerdePolyline;
+var firebaseRefHistorico = null;
+
+var carroIconeAdmin = L.divIcon({
+    className: '',
+    html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#00c8ff;border:3px solid #fff;border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,0.6)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="#121212">
+                <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5A1.5 1.5 0 0 1 21 12.5v4A1.5 1.5 0 0 1 19.5 18H19a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0h-.5A1.5 1.5 0 0 1 3 16.5v-4A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1-3H8.1l-1 3zM7 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
+            </svg>
+           </div>`,
+    iconSize: [36, 36], iconAnchor: [18, 18]
+});
+
+function initAdminMap() {
+    map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-23.5505, -46.6333], 15);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    rotaVerdePolyline = L.polyline([], { color: '#00ff88', weight: 6, opacity: 0.85 }).addTo(map);
+    adminMarker = L.marker([-23.5505, -46.6333], { icon: carroIconeAdmin }).addTo(map);
+}
+
+// ═══════════════════════════════════════════════════
+//  SISTEMA DE SNAP TO ROADS (MANTIDO E ADAPTADO)
+// ═══════════════════════════════════════════════════
+function processarERealinharRotaPelasRuas(pontosBrutos) {
+    if (pontosBrutos.length < 2) return;
+
+    var pontosParaApi = [];
+    var maxPontosApi = 50; 
+    
+    if (pontosBrutos.length <= maxPontosApi) {
+        pontosParaApi = pontosBrutos;
+    } else {
+        var salto = Math.ceil(pontosBrutos.length / maxPontosApi);
+        for (var i = 0; i < pontosBrutos.length; i += salto) {
+            pontosParaApi.push(pontosBrutos[i]);
+        }
+        if (pontosParaApi[pontosParaApi.length - 1] !== pontosBrutos[pontosBrutos.length - 1]) {
+            pontosParaApi.push(pontosBrutos[pontosBrutos.length - 1]);
+        }
+    }
+
+    var stringCoordenadas = pontosParaApi.map(function(pt) {
+        return pt[1] + ',' + pt[0];
+    }).join(';');
+
+    var urlOsrm = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
+
+    fetch(urlOsrm)
+        .then(function(res) { return res.json(); })
+        .then(function(dadosOsrm) {
+            if (dadosOsrm.routes && dadosOsrm.routes.length > 0) {
+                var coordenadasAlinhadas = dadosOsrm.routes[0].geometry.coordinates.map(function(coord) {
+                    return [coord[1], coord[0]];
+                });
+                rotaVerdePolyline.setLatLngs(coordenadasAlinhadas);
+            }
+        })
+        .catch(function(e) { console.warn("Erro OSRM em segundo plano:", e); });
+}
+
+// ═══════════════════════════════════════════════════
+//  NOVO MOTOR DE ENDEREÇO COMPLETO E EXTENSO
+// ═══════════════════════════════════════════════════
+function traduzirCoordenadasParaEnderecoCompleto(lat, lon) {
+    var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=pt-BR&zoom=18';
+
+    fetch(url, { headers: { 'User-Agent': 'EvertonGPSAdminProV3' } })
+        .then(function(res) { return res.json(); })
+        .then(function(d) {
+            if (d && d.display_name) {
+                // display_name traz a string oficial corrida e completa da rua até o país
+                var enderecoCompleto = d.display_name;
+
+                document.getElementById('addressDetails').innerHTML = `
+                    <p><strong>Endereço Oficial:</strong><br>${enderecoCompleto}</p>
+                `;
+                
+                // Abre o pop-up com as primeiras partes legíveis do endereço completo
+                var partes = enderecoCompleto.split(',');
+                var resumoPopUp = partes[0] + (partes[1] ? ',' + partes[1] : '') + (partes[2] ? ',' + partes[2] : '');
+                adminMarker.bindPopup(`<b>Última Parada Identificada:</b><br>${resumoPopUp}`).openPopup();
+            } else {
+                document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
+            }
+        }).catch(function() {
+            document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
+        });
+}
+
+// ═══════════════════════════════════════════════════
+//  SISTEMA DE CONSULTA POR MÊS, DATAS (DE / ATÉ) E HORAS
+// ═══════════════════════════════════════════════════
+function aplicarFiltrosEBuscar() {
+    var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
+    var mesFiltro = document.getElementById('filtroMes').value;
+    var dataInicioFiltro = document.getElementById('filtroDataInicio').value;
+    var dataFimFiltro = document.getElementById('filtroDataFim').value;
+    var horaIn = document.getElementById('filtroHoraInicio').value || '00:00';
+    var horaFim = document.getElementById('filtroHoraFim').value || '23:59';
+
+    var btn = document.getElementById('btnFiltrar');
+    btn.disabled = true;
+    btn.textContent = "Filtrando...";
+    document.getElementById('conexaoStatus').textContent = "Buscando registros...";
+
+    if (firebaseRefHistorico) firebaseRefHistorico.off();
+
+    // Puxa histórico para validação e cruzamento
+    firebaseRefHistorico = db.ref('veiculos/' + vID + '/historico').limitToLast(1000);
+    
+    firebaseRefHistorico.once('value').then(function(snapshot) {
+        var pontosFiltrados = [];
+        var ultimoPontoValido = null;
+
+        snapshot.forEach(function(childSnapshot) {
+            var log = childSnapshot.val();
+            if (!log.lat || !log.lon) return;
+
+            var dataLogISO = log.dataISO; 
+            var horaLog = log.hora;       
+
+            if(!dataLogISO && log.timestamp) {
+                var dObj = new Date(log.timestamp);
+                dataLogISO = dObj.toISOString().slice(0,10); // Retorna "YYYY-MM-DD"
+                horaLog = dObj.toLocaleTimeString('pt-BR');  // Retorna "HH:MM:SS"
+            }
+
+            // Filtro 1: Mês Específico
+            if (mesFiltro && dataLogISO) {
+                var mesDoLog = dataLogISO.split('-')[1];
+                if (mesDoLog !== mesFiltro) return;
+            }
+
+            // Filtro 2: Validação por Janela de Datas (De / Até)
+            if (dataLogISO) {
+                if (dataInicioFiltro && dataLogISO < dataInicioFiltro) return;
+                if (dataFimFiltro && dataLogISO > dataFimFiltro) return;
+            }
+
+            // Filtro 3: Janela de Horários
+            if (horaLog) {
+                var apenasHoraMinuto = horaLog.substring(0, 5);
+                if (apenasHoraMinuto < horaIn || apenasHoraMinuto > horaFim) return;
+            }
+
+            pontosFiltrados.push([Number(log.lat), Number(log.lon)]);
+            ultimoPontoValido = log;
+        });
+
+        document.getElementById('adm-pts').textContent = pontosFiltrados.length;
+
+        if (pontosFiltrados.length > 0) {
+            // Desenha rota imediata direta
+            rotaVerdePolyline.setLatLngs(pontosFiltrados);
+            
+            var ultimaCoordenada = pontosFiltrados[pontosFiltrados.length - 1];
+            adminMarker.setLatLng(ultimaCoordenada);
+            map.fitBounds(rotaVerdePolyline.getBounds(), { padding: [40, 40] });
+
+            // Alinha perfeitamente nas ruas através da amostragem do OSRM
+            processarERealinharRotaPelasRuas(pontosFiltrados);
+
+            // Dados rápidos e telemetria
+            document.getElementById('adm-vel').textContent = (ultimoPontoValido.velocidade || 0) + " km/h";
+            document.getElementById('adm-acc').textContent = (ultimoPontoValido.acuracia || 0) + " m";
+            document.getElementById('adm-time').textContent = (ultimoPontoValido.dataISO ? ultimoPontoValido.dataISO.split('-').reverse().join('/') : "") + " " + (ultimoPontoValido.hora || "");
+            
+            // Faz a chamada para retornar o endereço completo extenso
+            traduzirCoordenadasParaEnderecoCompleto(ultimoPontoValido.lat, ultimoPontoValido.lon);
+            document.getElementById('conexaoStatus').textContent = "Pronto";
+        } else {
+            rotaVerdePolyline.setLatLngs([]);
+            document.getElementById('conexaoStatus').textContent = "Sem dados";
+            document.getElementById('addressDetails').innerHTML = `<p style="color: #ff3333;">Nenhum ponto registrado atende ao intervalo de busca configurado.</p>`;
+        }
+
+        btn.disabled = false;
+        btn.textContent = "Pesquisar e Aplicar Rota";
+    }).catch(function(err) {
+        console.error(err);
+        btn.disabled = false;
+        btn.textContent = "Pesquisar e Aplicar Rota";
+    });
+}
+
+window.onload = function() {
+    initAdminMap();
+    
+    // Inicia os campos de data preenchidos com o dia de hoje por padrão
+    var hoje = new Date().toISOString().slice(0, 10);
+    document.getElementById('filtroDataInicio').value = hoje;
+    document.getElementById('filtroDataFim').value = hoje;
+    
+    aplicarFiltrosEBuscar();
+};
+</script>
+</body>
+</html>
