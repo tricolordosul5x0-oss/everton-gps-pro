@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Everton GPS PRO</title>
 
-    <!-- PWA -->
+    <!-- Configurações PWA -->
     <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#121212">
+    <meta name="theme-color" content="#0a0d12">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,276 +15,261 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="icon" href="./icons/icon-192.png">
 
-    <!-- Leaflet via CDN -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <!-- Leaflet CSS via CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+
     <style>
+        /* ============ TOKENS ============ */
         :root {
-            --primary: #00ff88;
-            --bg: #121212;
-            --card: #1e1e1e;
-            --accent2: #00c8ff;
-            --warn: #ffaa00;
-            --danger: #ff4455;
-            --card2: #252525;
-            --radius: 12px;
-            --stop-color: #ff6b35;
+            --bg-void: #0a0d12;
+            --bg-panel: #131820;
+            --bg-raised: #1a212b;
+            --border: rgba(255,255,255,.08);
+            --border-soft: rgba(255,255,255,.05);
+
+            --signal: #00ffa6;
+            --signal-dim: rgba(0,255,166,.16);
+            --telemetry: #2dd4ff;
+            --telemetry-dim: rgba(45,212,255,.14);
+            --amber: #ffb020;
+            --amber-dim: rgba(255,176,32,.14);
+            --danger: #ff5470;
+
+            --ink-100: #eef2f6;
+            --ink-200: #c7d0db;
+            --ink-500: #74808f;
+            --ink-700: #46505c;
+
+            --radius-lg: 14px;
+            --radius-md: 10px;
+            --radius-sm: 7px;
+            --mono: 'SF Mono','Roboto Mono','Consolas',ui-monospace,monospace;
+            --sans: -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
         }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { margin:0; padding:10px; background:var(--bg); color:white; font-family:'Segoe UI',Arial,sans-serif; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+        }
+        body {
+            margin:0; padding:12px; padding-bottom:28px;
+            background:
+                radial-gradient(circle at 12% 0%, rgba(0,255,166,.05), transparent 40%),
+                radial-gradient(circle at 90% 10%, rgba(45,212,255,.04), transparent 45%),
+                var(--bg-void);
+            color:var(--ink-200); font-family:var(--sans);
+            max-width:560px; margin-inline:auto;
+        }
 
+        /* ============ HEADER ============ */
         header {
-            background:var(--card); padding:15px; border-bottom:2px solid var(--primary);
-            text-align:center; margin-bottom:10px; border-radius:10px; position:relative; overflow:hidden;
+            background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg);
+            padding:14px 16px; margin-bottom:10px;
         }
-        header::before {
-            content:''; position:absolute; top:0; left:0; right:0; height:2px;
-            background:linear-gradient(90deg,transparent,var(--primary),var(--accent2),transparent);
-            animation:scanline 3s linear infinite;
+        .brand-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .brand { display:flex; align-items:center; gap:10px; }
+        .brand-mark {
+            width:34px; height:34px; border-radius:9px; flex:none;
+            background:linear-gradient(145deg, var(--signal-dim), var(--telemetry-dim));
+            border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:1.05em;
         }
-        @keyframes scanline { 0%{left:-100%} 100%{left:100%} }
-        .header-inner { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:center; -ms-flex-align:center; align-items:center; -webkit-box-pack:center; -ms-flex-pack:center; justify-content:center; gap:12px; }
-        .gps-signal { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:flex-end; -ms-flex-align:flex-end; align-items:flex-end; gap:3px; height:20px; }
-        .gps-signal span { width:4px; border-radius:2px; background:#333; }
-        .gps-signal span:nth-child(1){height:5px} .gps-signal span:nth-child(2){height:10px}
-        .gps-signal span:nth-child(3){height:15px} .gps-signal span:nth-child(4){height:20px}
-        .gps-signal.active span { background:var(--primary); animation:pulse-bar 1.4s ease-in-out infinite; }
-        .gps-signal.weak span   { background:var(--warn); }
-        @keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:.4} }
+        .brand-text h1 { margin:0; font-size:1em; letter-spacing:.5px; color:var(--ink-100); font-weight:700; }
+        .brand-text span { font-size:.68em; color:var(--ink-500); font-family:var(--mono); letter-spacing:1px; }
 
-        #map { height:320px; width:100%; border-radius:10px; background:#252525; }
-        .map-wrapper { position:relative; }
-        .map-controls-overlay {
-            position:absolute; top:10px; right:10px; z-index:1000;
-            display:-webkit-box; display:-ms-flexbox; display:flex;
-            -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:6px;
-        }
+        .gps-signal { display:flex; align-items:flex-end; gap:3px; height:18px; }
+        .gps-signal span { width:4px; border-radius:2px; background:var(--ink-700); transition:background .3s; }
+        .gps-signal span:nth-child(1){height:5px} .gps-signal span:nth-child(2){height:9px}
+        .gps-signal span:nth-child(3){height:13px} .gps-signal span:nth-child(4){height:18px}
+        .gps-signal.active span { background:var(--signal); animation:pulse-bar 1.4s ease-in-out infinite; }
+        .gps-signal.active span:nth-child(1){animation-delay:0s}
+        .gps-signal.active span:nth-child(2){animation-delay:.12s}
+        .gps-signal.active span:nth-child(3){animation-delay:.24s}
+        .gps-signal.active span:nth-child(4){animation-delay:.36s}
+        @keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+        /* Telemetry strip - signature element */
+        .telemetry-strip { display:flex; gap:8px; margin-top:12px; }
+        .tchip { flex:1; background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:7px 9px; min-width:0; }
+        .tchip-label { font-size:.6em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.6px; font-family:var(--mono); display:block; margin-bottom:2px; }
+        .tchip-value { font-size:.85em; color:var(--ink-100); font-family:var(--mono); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .tchip-value.on { color:var(--signal); }
+        .tchip-value.warn { color:var(--amber); }
+
+        /* ============ MAP ============ */
+        .map-wrapper { position:relative; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); }
+        #map { height:300px; width:100%; background:var(--bg-raised); z-index:1; }
+        .map-controls-overlay { position:absolute; top:10px; right:10px; z-index:1000; display:flex; flex-direction:column; gap:6px; }
         .map-btn {
-            width:38px; height:38px; border-radius:8px;
-            background:rgba(30,30,30,.92); border:1px solid rgba(0,255,136,.3);
-            color:var(--primary); font-size:1.1em; cursor:pointer;
-            display:-webkit-box; display:-ms-flexbox; display:flex;
-            -webkit-box-align:center; -ms-flex-align:center; align-items:center;
-            -webkit-box-pack:center; -ms-flex-pack:center; justify-content:center; padding:0;
+            width:36px; height:36px; border-radius:8px; background:rgba(19,24,32,.92); border:1px solid var(--border);
+            color:var(--signal); font-size:1.05em; cursor:pointer; display:flex; align-items:center; justify-content:center;
+            backdrop-filter: blur(4px);
         }
-        #cacheInfo { font-size:.7em; color:#555; font-family:monospace; text-align:center; padding:4px 0 0; letter-spacing:1px; }
-        #cacheInfo.cached { color:#00aa55; }
+        .map-btn:active { transform:scale(.94); }
 
-        .controls { margin-top:15px; display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:10px; }
-        input, select {
-            padding:12px; border:1px solid #2a2a2a; border-radius:8px;
-            background:#252525; color:white; font-size:1em;
-            font-family:monospace; letter-spacing:1px; width:100%;
-            -webkit-appearance:none; -moz-appearance:none;
+        /* ============ GENERIC ============ */
+        .controls { margin-top:10px; display:flex; flex-direction:column; gap:10px; }
+        .field-label { font-size:.66em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.8px; font-family:var(--mono); margin-bottom:5px; display:block; }
+        input[type="text"], input[type="date"], select {
+            padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-panel);
+            color:var(--ink-100); font-size:.95em; font-family:var(--mono); width:100%;
         }
+        input::placeholder { color:var(--ink-700); }
+
         button#btnAtualizar {
-            padding:14px; border:none; border-radius:8px;
-            background:linear-gradient(135deg,#00ff88,#00c8ff); color:black;
-            font-weight:bold; cursor:pointer; font-size:1.1em; letter-spacing:2px;
+            padding:15px; border:none; border-radius:var(--radius-md); font-weight:700; cursor:pointer; font-size:1.02em; letter-spacing:1.5px;
+            background:linear-gradient(135deg,#00ffa6,#2dd4ff); color:#021410;
+            box-shadow:0 8px 20px -8px rgba(0,255,166,.45);
         }
-        button#btnAtualizar.loading { pointer-events:none; opacity:.7; }
+        button#btnAtualizar:active { transform:scale(.985); }
 
-        .metrics-grid { display:-webkit-box; display:-ms-flexbox; display:flex; -ms-flex-wrap:wrap; flex-wrap:wrap; gap:8px; }
-        .metric-card {
-            background:var(--card2); border-radius:var(--radius); padding:12px 14px;
-            border:1px solid #2a2a2a;
-            -webkit-box-flex:1; -ms-flex:1 1 calc(50% - 4px); flex:1 1 calc(50% - 4px);
-            min-width:120px;
+        .external-apps-grid { display:flex; gap:8px; }
+        .btn-ext {
+            flex:1; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); font-weight:700; font-size:.85em;
+            text-align:center; text-decoration:none; display:none; align-items:center; justify-content:center; gap:6px;
         }
-        .metric-card.stopped { border-color:var(--stop-color); }
-        .metric-label { font-size:.68em; color:#888; text-transform:uppercase; letter-spacing:1px; font-family:monospace; }
-        .metric-value { font-size:1.5em; font-weight:700; color:var(--primary); }
-        .metric-unit  { font-size:.65em; color:#666; font-family:monospace; }
+        .btn-ext-maps { background:rgba(66,133,244,.12); color:#8fb4ff; }
+        .btn-ext-waze { background:rgba(51,204,255,.12); color:#7fe3ff; }
 
-        .status-box {
-            background:#252525; padding:20px 15px 15px; border-radius:8px;
-            border:1px solid #2a2a2a; line-height:1.8; font-size:1em; position:relative;
+        /* ============ LOCATION CARD ============ */
+        .panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 14px 14px; position:relative; }
+        .panel-tag {
+            position:absolute; top:-9px; left:12px; background:var(--bg-raised); padding:2px 9px; font-size:.62em; color:var(--signal);
+            border:1px solid var(--border); border-radius:5px; font-family:var(--mono); letter-spacing:.8px;
         }
-        .status-label-tag {
-            position:absolute; top:-10px; left:12px; background:var(--card2);
-            padding:1px 8px; font-size:.68em; color:var(--primary);
-            border:1px solid rgba(0,255,136,.4); border-radius:4px; font-family:monospace;
-        }
-        .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#444; margin-right:6px; vertical-align:middle; }
-        .status-dot.active { background:var(--primary); animation:pulse-bar 1.4s ease-in-out infinite; }
-        .status-dot.warn   { background:var(--warn); }
-        .status-dot.error  { background:var(--danger); }
-        .status-dot.stop   { background:var(--stop-color); }
+        .loc-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px dashed var(--border-soft); }
+        .loc-row:last-of-type { border-bottom:none; }
+        .loc-key { font-size:.72em; color:var(--ink-500); font-family:var(--mono); letter-spacing:.4px; flex:none; }
+        .loc-val { font-size:.92em; color:var(--ink-100); text-align:right; font-weight:600; }
+        .loc-footer { margin-top:10px; padding-top:9px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:.68em; color:var(--ink-500); font-family:var(--mono); }
+        .loc-footer b { color:var(--telemetry); font-weight:600; }
 
-        .error-log {
-            background:#3a1a1a; border:1px solid #ff4444; color:#ff9999;
-            padding:10px; border-radius:8px; display:none; font-size:.85em;
-            font-family:monospace; max-height:120px; overflow-y:auto;
-        }
+        /* ============ METRICS ============ */
+        .metrics-grid { display:flex; flex-wrap:wrap; gap:8px; }
+        .metric-card { background:var(--bg-raised); border-radius:var(--radius-md); padding:12px 14px; border:1px solid var(--border-soft); flex:1 1 calc(50% - 4px); min-width:120px; }
+        .metric-label { font-size:.64em; color:var(--ink-500); text-transform:uppercase; font-family:var(--mono); letter-spacing:.6px; }
+        .metric-value { font-size:1.45em; font-weight:700; color:var(--signal); line-height:1.3; }
+        .metric-unit  { font-size:.62em; color:var(--ink-700); font-family:var(--mono); }
 
-        #offlineBadge {
-            display:none; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:8px;
-            background:#2a1a00; border:1px solid var(--warn); color:var(--warn);
-            border-radius:8px; padding:10px 14px; font-size:.82em;
-            font-family:monospace; letter-spacing:1px;
-        }
-        #offlineBadge.visible { display:-webkit-box; display:-ms-flexbox; display:flex; }
-        #offlineBadge .badge-dot {
-            width:8px; height:8px; border-radius:50%; background:var(--warn);
-            -ms-flex-negative:0; flex-shrink:0; animation:pulse-bar 1s ease-in-out infinite;
-        }
-        #pendingCount {
-            margin-left:auto; background:rgba(255,170,0,.15);
-            border:1px solid rgba(255,170,0,.4); border-radius:4px; padding:1px 7px;
-        }
+        /* ============ STATUS ============ */
+        .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ink-700); margin-right:7px; flex:none; }
+        .status-dot.active { background:var(--signal); animation:pulse-bar 1.4s ease-in-out infinite; }
+        .status-dot.warn { background:var(--amber); animation:pulse-bar 1.4s ease-in-out infinite; }
+        #statusText { font-size:.86em; }
 
-        #stopBadge {
-            display:none; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:10px;
-            background:#2a1200; border:1px solid var(--stop-color); color:var(--stop-color);
-            border-radius:8px; padding:12px 14px; font-size:.85em;
-            font-family:monospace; letter-spacing:1px;
-            animation:stopPulse 2s ease-in-out infinite;
-        }
-        #stopBadge.visible { display:-webkit-box; display:-ms-flexbox; display:flex; }
-        @keyframes stopPulse {
-            0%,100%{border-color:var(--stop-color)}
-            50%{border-color:#ff9060}
-        }
-        .stop-icon { font-size:1.4em; -ms-flex-negative:0; flex-shrink:0; animation:pulse-bar 1.5s ease-in-out infinite; }
-        .stop-info { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:2px; -webkit-box-flex:1; -ms-flex:1; flex:1; }
-        .stop-title { font-weight:700; font-size:.9em; letter-spacing:2px; }
-        .stop-detail { font-size:.75em; color:#ffaa80; }
-        #stopTimer {
-            background:rgba(255,107,53,.15); border:1px solid rgba(255,107,53,.4);
-            border-radius:4px; padding:2px 8px; font-size:1em; font-weight:700; white-space:nowrap;
-        }
+        /* ============ OFFLINE QUEUE DETAIL ============ */
+        #offlineBadge { display:none; align-items:center; gap:8px; background:var(--amber-dim); border:1px solid rgba(255,176,32,.4); color:var(--amber); border-radius:var(--radius-md); padding:10px 12px; font-size:.78em; font-family:var(--mono); }
+        #offlineBadge.visible { display:flex; }
+        #pendingCount { margin-left:auto; background:rgba(255,176,32,.18); border:1px solid rgba(255,176,32,.4); border-radius:4px; padding:1px 7px; flex:none; }
 
-        #liveBadge {
-            display:flex; align-items:center; gap:8px;
-            background:#06291a; border:1px solid var(--primary); color:var(--primary);
-            border-radius:8px; padding:8px 14px; font-size:.78em;
-            font-family:monospace; letter-spacing:1px;
-        }
-        #liveBadge .badge-dot { width:8px; height:8px; border-radius:50%; background:var(--primary); animation:pulse-bar 1s ease-in-out infinite; flex-shrink:0; }
+        /* ============ WAKE LOCK ============ */
+        .wakelock-card { display:flex; flex-direction:column; gap:7px; }
+        .wakelock-toprow { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+        .wakelock-toprow span.t { font-size:.88em; color:var(--ink-100); font-weight:600; }
+        .switch { position:relative; width:42px; height:24px; flex:none; }
+        .switch input { opacity:0; width:0; height:0; }
+        .slider { position:absolute; inset:0; background:var(--bg-raised); border:1px solid var(--border); border-radius:24px; cursor:pointer; transition:.2s; }
+        .slider::before { content:""; position:absolute; width:18px; height:18px; left:2px; top:2px; background:var(--ink-500); border-radius:50%; transition:.2s; }
+        .switch input:checked + .slider { background:var(--signal-dim); border-color:var(--signal); }
+        .switch input:checked + .slider::before { transform:translateX(17px); background:var(--signal); }
+        .micro-copy { font-size:.72em; color:var(--ink-500); line-height:1.45; margin:0; }
+        .micro-copy b { color:var(--ink-200); }
 
-        #historicoPanel {
-            background:var(--card); border-radius:var(--radius);
-            border:1px solid #2a2a2a; overflow:hidden;
-        }
-        .hist-header {
-            display:-webkit-box; display:-ms-flexbox; display:flex;
-            -webkit-box-align:center; -ms-flex-align:center; align-items:center;
-            -webkit-box-pack:justify; -ms-flex-pack:justify; justify-content:space-between;
-            padding:12px 14px; background:#1a1a1a; border-bottom:1px solid #2a2a2a;
-            cursor:pointer; -webkit-user-select:none; -moz-user-select:none; user-select:none;
-        }
-        .hist-header-left { display:-webkit-box; display:-ms-flexbox; display:flex; -webkit-box-align:center; -ms-flex-align:center; align-items:center; gap:8px; font-size:1.05em; font-weight:700; letter-spacing:2px; color:var(--primary); }
-        .hist-toggle { color:#666; font-size:.8em; }
-        .hist-body { display:none; padding:12px; }
+        /* ============ HISTORY ============ */
+        #historicoPanel { background:var(--bg-panel); border-radius:var(--radius-lg); border:1px solid var(--border); overflow:hidden; }
+        .hist-header { display:flex; align-items:center; justify-content:space-between; padding:13px 14px; background:var(--bg-raised); cursor:pointer; }
+        .hist-header-left { font-size:.92em; font-weight:700; color:var(--ink-100); display:flex; align-items:center; gap:8px; }
+        .hist-header-left .ic { color:var(--telemetry); }
+        #histToggleIcon { color:var(--ink-500); transition:transform .2s; font-family:var(--mono); }
+        #histToggleIcon.open { transform:rotate(180deg); }
+        .hist-body { display:none; padding:13px; }
         .hist-body.open { display:block; }
+        .hist-filters { display:flex; gap:8px; margin-bottom:10px; }
+        .hist-filters > div { flex:1; }
+        .btn-buscar { width:100%; padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(0,255,166,.15), rgba(45,212,255,.12)); color:var(--ink-100); font-weight:700; cursor:pointer; font-size:.88em; letter-spacing:.4px; }
+        #histResultados { max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+        .hist-item { background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:.8em; cursor:pointer; }
+        .hist-item:active { border-color:var(--signal); }
+        .hist-item .hr { color:var(--ink-100); font-weight:700; font-family:var(--mono); }
+        .hist-item .vel { color:var(--ink-500); }
+        .hist-item .addr { color:var(--telemetry); display:block; margin-top:3px; }
 
-        .hist-filters {
-            display:-webkit-box; display:-ms-flexbox; display:flex; gap:8px; margin-bottom:10px; -ms-flex-wrap:wrap; flex-wrap:wrap;
-        }
-        .hist-filters > div { -webkit-box-flex:1; -ms-flex:1 1 calc(50% - 4px); flex:1 1 calc(50% - 4px); }
-        .hist-filters-row {
-            display:-webkit-box; display:-ms-flexbox; display:flex; gap:8px; margin-bottom:10px; -ms-flex-wrap:wrap; flex-wrap:wrap;
-        }
-        .hist-filters-row > div { -webkit-box-flex:1; -ms-flex:1 1 calc(33% - 6px); flex:1 1 calc(33% - 6px); }
-        .hist-filters input, .hist-filters-row input, .hist-filters-row select { padding:8px 6px; font-size:.82em; }
-
-        .btn-buscar {
-            width:100%; padding:10px; border:none; border-radius:8px;
-            background:linear-gradient(135deg,#00cc66,#0099cc); color:black;
-            font-weight:700; cursor:pointer; font-size:1em; letter-spacing:2px; margin-bottom:10px;
-        }
-        .btn-buscar:disabled { opacity:.5; pointer-events:none; }
-
-        #histResultados {
-            max-height:340px; overflow-y:auto;
-            display:-webkit-box; display:-ms-flexbox; display:flex;
-            -webkit-box-orient:vertical; -ms-flex-direction:column; flex-direction:column; gap:6px;
-        }
-        .hist-item {
-            background:#1a1a1a; border:1px solid #2a2a2a; border-radius:8px;
-            padding:10px 12px; font-size:.82em; line-height:1.6;
-            cursor:pointer;
-        }
-        .hist-item.parada   { border-left:3px solid var(--stop-color); }
-        .hist-item.retomada { border-left:3px solid var(--accent2); }
-        .hist-item-hora { color:var(--primary); font-family:monospace; font-weight:700; font-size:.95em; }
-        .hist-item-end  { color:#ccc; }
-        .hist-item-meta { color:#666; font-size:.9em; }
-        .hist-item-tipo {
-            display:inline-block; padding:1px 6px; border-radius:3px; font-size:.8em; margin-left:6px;
-        }
-        .hist-item-tipo.parada   { background:rgba(255,107,53,.2); color:var(--stop-color); }
-        .hist-item-tipo.retomada { background:rgba(0,200,255,.15); color:var(--accent2); }
-        .hist-item-tipo.normal   { background:rgba(0,255,136,.1); color:var(--primary); }
-        .hist-empty {
-            text-align:center; color:#555; font-family:monospace;
-            font-size:.82em; padding:30px 0; letter-spacing:1px;
-        }
-        .hist-count {
-            font-size:.72em; color:#666; font-family:monospace;
-            text-align:right; padding:6px 0 2px; letter-spacing:1px;
-        }
-        #histMapBtn {
-            width:100%; padding:8px; border:1px solid rgba(0,255,136,.3); border-radius:8px;
-            background:transparent; color:var(--primary); cursor:pointer;
-            font-family:monospace; font-size:.8em; letter-spacing:1px;
-            margin-top:8px; display:none;
-        }
-        #histMapBtn.visible { display:block; }
-
-        #pwaInstallBtn {
-            display:none; width:100%; padding:10px; border:1px solid rgba(0,200,255,.4); border-radius:8px;
-            background:rgba(0,200,255,.08); color:var(--accent2); cursor:pointer;
-            font-family:monospace; font-size:.82em; letter-spacing:1px;
-        }
+        #pwaInstallBtn { display:none; width:100%; padding:11px; border:1px solid rgba(45,212,255,.35); border-radius:var(--radius-md); background:rgba(45,212,255,.07); color:var(--telemetry); cursor:pointer; font-family:var(--mono); font-size:.82em; }
         #pwaInstallBtn.visible { display:block; }
+
+        footer.app-foot { text-align:center; font-size:.65em; color:var(--ink-700); font-family:var(--mono); margin-top:14px; letter-spacing:.4px; }
     </style>
 </head>
 <body>
 
 <header>
-    <div class="header-inner">
-        <h2 style="margin:0;letter-spacing:3px;font-size:1.35em">&#128752; Everton GPS PRO</h2>
+    <div class="brand-row">
+        <div class="brand">
+            <div class="brand-mark">🛰</div>
+            <div class="brand-text">
+                <h1>Everton GPS PRO</h1>
+                <span id="headerClock">--:--:--</span>
+            </div>
+        </div>
         <div class="gps-signal" id="gpsSignal"><span></span><span></span><span></span><span></span></div>
     </div>
-    <div style="font-size:.68em;color:#888;font-family:monospace;letter-spacing:2px;margin-top:4px">RASTREAMENTO EM TEMPO REAL</div>
+
+    <!-- TELEMETRY STRIP -->
+    <div class="telemetry-strip">
+        <div class="tchip">
+            <span class="tchip-label">Sinal GPS</span>
+            <span class="tchip-value" id="chipSinal">Inicializando</span>
+        </div>
+        <div class="tchip">
+            <span class="tchip-label">Última atualização</span>
+            <span class="tchip-value" id="chipAtualizacao">—</span>
+        </div>
+        <div class="tchip">
+            <span class="tchip-label">Fila offline</span>
+            <span class="tchip-value" id="chipFila">0</span>
+        </div>
+    </div>
 </header>
 
-<button id="pwaInstallBtn" onclick="instalarPWA()">&#11015; INSTALAR APP NA TELA INICIAL</button>
-
-<div class="map-wrapper">
-    <div id="map"></div>
-    <div class="map-controls-overlay">
-        <button class="map-btn" title="Centralizar"   onclick="centralizarMapa()">&#128205;</button>
-        <button class="map-btn" title="Limpar rota"   onclick="limparRota()">&#128465;</button>
-        <button class="map-btn" title="Cache offline" onclick="cachearAreaAtual()" id="btnCache">&#128190;</button>
-    </div>
-</div>
-<div id="cacheInfo">&#128506; TILES: carregando da internet</div>
+<button id="pwaInstallBtn" onclick="instalarPWA()">⬇ INSTALAR APLICATIVO NA TELA INICIAL</button>
 
 <div class="controls">
-    <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veiculo">
 
-    <div id="liveBadge">
-        <span class="badge-dot"></span>
-        <span>GPS CONTINUO ATIVO - enviando em tempo real</span>
+    <div class="map-wrapper">
+        <div id="map"></div>
+        <div class="map-controls-overlay">
+            <button class="map-btn" title="Centralizar" onclick="centralizarMapa()">📍</button>
+            <button class="map-btn" title="Limpar rota" onclick="limparRota()">🗑</button>
+        </div>
+    </div>
+
+    <div>
+        <span class="field-label">Identificação do veículo</span>
+        <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veículo">
+    </div>
+
+    <div class="external-apps-grid">
+        <a id="btnExtMaps" href="#" target="_blank" class="btn-ext btn-ext-maps">🗺️ Abrir no Maps</a>
+        <a id="btnExtWaze" href="#" target="_blank" class="btn-ext btn-ext-waze">🚙 Abrir no Waze</a>
     </div>
 
     <div id="offlineBadge">
         <span class="badge-dot"></span>
-        <span>MODO OFFLINE - Gravando localmente</span>
+        <span>MODO OFFLINE — gravando localmente no aparelho</span>
         <span id="pendingCount">0 pendentes</span>
     </div>
 
-    <div id="stopBadge">
-        <span class="stop-icon">P</span>
-        <div class="stop-info">
-            <span class="stop-title">VEICULO PARADO</span>
-            <span class="stop-detail" id="stopAddress">Calculando endereco...</span>
-        </div>
-        <span id="stopTimer">0:00</span>
-    </div>
+    <button id="btnAtualizar" onclick="atualizarLocalizacao()">🛰 FORÇAR ATUALIZAÇÃO AGORA</button>
 
-    <button id="btnAtualizar" onclick="atualizarLocalizacao()">&#128752; FORCAR ATUALIZACAO AGORA</button>
+    <!-- LOCALIZAÇÃO ATUAL: rua / bairro / cidade -->
+    <div class="panel">
+        <span class="panel-tag">LOCALIZAÇÃO ATUAL</span>
+        <div class="loc-row"><span class="loc-key">Rua</span><span class="loc-val" id="locRua">—</span></div>
+        <div class="loc-row"><span class="loc-key">Bairro</span><span class="loc-val" id="locBairro">—</span></div>
+        <div class="loc-row"><span class="loc-key">Cidade</span><span class="loc-val" id="locCidade">—</span></div>
+        <div class="loc-footer">
+            <span>Horário: <b id="locHora">—</b></span>
+            <span>Data: <b id="locData">—</b></span>
+        </div>
+    </div>
 
     <div class="metrics-grid" id="metricsGrid" style="display:none">
         <div class="metric-card">
@@ -293,907 +278,434 @@
             <div class="metric-unit">KM/H</div>
         </div>
         <div class="metric-card">
-            <div class="metric-label">Precisao GPS</div>
-            <div class="metric-value" id="mv-acc">-</div>
-            <div class="metric-unit">METROS</div>
-        </div>
-        <div class="metric-card" id="mc-pts">
-            <div class="metric-label">Pontos</div>
+            <div class="metric-label">Pontos gravados</div>
             <div class="metric-value" id="mv-pts">0</div>
             <div class="metric-unit">REGISTROS</div>
         </div>
-        <div class="metric-card">
-            <div class="metric-label">Atualizacao</div>
-            <div class="metric-value" id="mv-time" style="font-size:1.1em">-</div>
-            <div class="metric-unit">HORARIO</div>
+    </div>
+
+    <div class="panel">
+        <span class="panel-tag">SISTEMA</span>
+        <div style="display:flex; align-items:center;">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Inicializando GPS...</span>
         </div>
     </div>
 
-    <div class="status-box">
-        <span class="status-label-tag">SISTEMA</span>
-        <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Inicializando GPS...</span>
+    <!-- MANTER TELA ATIVA -->
+    <div class="panel wakelock-card">
+        <span class="panel-tag">TELA &amp; RASTREIO EM SEGUNDO PLANO</span>
+        <div class="wakelock-toprow">
+            <span class="t">Manter tela ativa durante o rastreio</span>
+            <label class="switch">
+                <input type="checkbox" id="wakeLockToggle" onchange="alternarWakeLock()">
+                <span class="slider"></span>
+            </label>
+        </div>
+        <p class="micro-copy">
+            Navegadores <b>suspendem a captura de GPS quando a tela é apagada</b> ou o app fica em segundo plano —
+            isso é uma restrição do sistema operacional, não deste aplicativo. Ativando esta opção, a tela permanece
+            ligada (pode reduzir o brilho) enquanto o rastreamento estiver ativo, garantindo a captura contínua.
+            Os pontos capturados offline ficam guardados no aparelho e são enviados automaticamente quando a
+            internet voltar — mesmo que o app esteja minimizado.
+        </p>
     </div>
 
-    <div id="errorLog" class="error-log"></div>
-
+    <!-- PAINEL DE HISTÓRICO POR CALENDÁRIO -->
     <div id="historicoPanel">
         <div class="hist-header" onclick="toggleHistorico()">
-            <div class="hist-header-left">HISTORICO DE REGISTROS</div>
-            <span class="hist-toggle" id="histToggleIcon">v</span>
+            <div class="hist-header-left"><span class="ic">🔍</span> Consultar datas passadas</div>
+            <span id="histToggleIcon">▾</span>
         </div>
         <div class="hist-body" id="histBody">
             <div class="hist-filters">
                 <div>
-                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">DATA INICIO</div>
+                    <span class="field-label">Data início</span>
                     <input type="date" id="filtroDataInicio">
                 </div>
                 <div>
-                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">DATA FIM</div>
+                    <span class="field-label">Data fim</span>
                     <input type="date" id="filtroDataFim">
                 </div>
             </div>
-            <div class="hist-filters-row">
-                <div>
-                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">HORA INICIO</div>
-                    <input type="time" id="filtroHoraInicio">
-                </div>
-                <div>
-                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">HORA FIM</div>
-                    <input type="time" id="filtroHoraFim">
-                </div>
-                <div>
-                    <div style="font-size:.68em;color:#666;font-family:monospace;margin-bottom:4px;letter-spacing:1px">TIPO</div>
-                    <select id="filtroTipo">
-                        <option value="">Todos</option>
-                        <option value="normal">Normal</option>
-                        <option value="parada_detectada">Paradas</option>
-                        <option value="retomada_movimento">Retomadas</option>
-                    </select>
-                </div>
-            </div>
-            <button class="btn-buscar" id="btnBuscarHistorico" onclick="buscarHistorico()">BUSCAR REGISTROS</button>
-            <div id="histCount" class="hist-count"></div>
-            <div id="histResultados"><div class="hist-empty">Use os filtros acima para buscar registros</div></div>
-            <button id="histMapBtn" onclick="mostrarRotaHistorico()">VER ROTA NO MAPA</button>
+            <button class="btn-buscar" onclick="buscarHistorico()">BUSCAR NO BANCO DE DADOS</button>
+            <div id="histResultados"></div>
         </div>
     </div>
 
+    <footer class="app-foot">EVERTON GPS PRO · RASTREAMENTO VEICULAR</footer>
 </div>
 
-<!-- Leaflet via CDN -->
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-<!-- Firebase COMPAT via CDN -->
+<!-- Scripts Essenciais (Leaflet + Firebase) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// ═══════════════════════════════════════════════════
-//  SERVICE WORKER + PWA INSTALL
-// ═══════════════════════════════════════════════════
+// Inicialização do Service Worker para rodar em segundo plano e sincronizar offline
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-        navigator.serviceWorker.register('./service-worker.js')
-            .catch(function(e) { console.warn('[SW] falhou ao registrar:', e); });
-    });
+    navigator.serviceWorker.register('./service-worker.js').then(function(reg) {
+        console.log('Service Worker ativo para segundo plano.');
+        swRegistration = reg;
+    }).catch(function(err){ console.error('Erro SW:', err); });
 }
+var swRegistration = null;
 
-if (navigator.storage && navigator.storage.persist) {
-    navigator.storage.persist().catch(function() {});
-}
-
-var deferredInstallPrompt = null;
-window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    document.getElementById('pwaInstallBtn').classList.add('visible');
-});
-function instalarPWA() {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.finally(function() {
-        deferredInstallPrompt = null;
-        document.getElementById('pwaInstallBtn').classList.remove('visible');
-    });
-}
-window.addEventListener('appinstalled', function() {
-    document.getElementById('pwaInstallBtn').classList.remove('visible');
-});
-
-// ═══════════════════════════════════════════════════
-//  FIREBASE CONFIG
-// ═══════════════════════════════════════════════════
+// Configuração do Firebase
 var firebaseConfig = {
-    apiKey:            "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
-    authDomain:        "everton-gps.firebaseapp.com",
-    databaseURL:       "https://everton-gps-default-rtdb.firebaseio.com",
-    projectId:         "everton-gps",
-    storageBucket:     "everton-gps.appspot.com",
+    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    authDomain: "everton-gps.firebaseapp.com",
+    databaseURL: "https://everton-gps-default-rtdb.firebaseio.com",
+    projectId: "everton-gps",
+    storageBucket: "everton-gps.appspot.com",
     messagingSenderId: "688936933095",
-    appId:             "1:688936933095:web:5508a8e1008f1b4020a1db"
+    appId: "1:688936933095:web:5508a8e1008f1b4020a1db"
 };
+firebase.initializeApp(firebaseConfig);
+var db = firebase.database();
 
-var db = null;
-try {
-    if (typeof firebase !== 'undefined') {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.database();
-    }
-} catch(e) {
-    console.warn('[Firebase] falhou, modo offline:', e.message);
-}
-
-// ═══════════════════════════════════════════════════
-//  DOM
-// ═══════════════════════════════════════════════════
-var statusText     = document.getElementById('statusText');
-var errorLog       = document.getElementById('errorLog');
-var offlineBadge   = document.getElementById('offlineBadge');
-var pendingCountEl = document.getElementById('pendingCount');
-var stopBadge      = document.getElementById('stopBadge');
-var stopTimerEl    = document.getElementById('stopTimer');
-var stopAddressEl  = document.getElementById('stopAddress');
-var mcPts          = document.getElementById('mc-pts');
-
-// ═══════════════════════════════════════════════════
-//  ESTADO
-// ═══════════════════════════════════════════════════
-var map, marcador, linhaRota = null, stopMarker = null;
+// Variáveis de Controle
+var map, marcador, linhaRota = null;
 var historicoRota = [];
 var totalRegistros = 0;
-var historicoResultados = [];
+var ultimoFixTimestamp = null;
+var wakeLock = null;
+var wakeLockDesejado = false;
 
-// ═══════════════════════════════════════════════════
-//  DETECÇÃO DE PARADA
-// ═══════════════════════════════════════════════════
-var STOP_RADIUS_M  = 30;
-var STOP_THRESHOLD = 120;
-var stopState = {
-    active:false, lat:null, lon:null, since:null,
-    alerted:false, address:'', timerInterval:null
-};
+// Inicializar Mapa
+map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 15);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+marcador = L.marker([-29.6133, -52.1919]).addTo(map);
 
-function dist(la1, lo1, la2, lo2) {
-    var R = 6371000;
-    var dLat = (la2 - la1) * Math.PI / 180;
-    var dLon = (lo2 - lo1) * Math.PI / 180;
-    var a = Math.sin(dLat/2)*Math.sin(dLat/2) +
-            Math.cos(la1*Math.PI/180)*Math.cos(la2*Math.PI/180)*
-            Math.sin(dLon/2)*Math.sin(dLon/2);
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function fmtDur(s) {
-    var m = Math.floor(s / 60);
-    var sec = Math.floor(s % 60);
-    return m + ':' + (sec < 10 ? '0' : '') + sec;
-}
-
-function iniciarTimerParada() {
-    if (stopState.timerInterval) clearInterval(stopState.timerInterval);
-    stopState.timerInterval = setInterval(function() {
-        if (!stopState.active || !stopState.since) return;
-        stopTimerEl.textContent = fmtDur((Date.now() - stopState.since) / 1000);
-    }, 1000);
-}
-
-function pararTimerParada() {
-    if (stopState.timerInterval) {
-        clearInterval(stopState.timerInterval);
-        stopState.timerInterval = null;
+/* =========================================================
+   RELÓGIO E TEMPO RELATIVO
+   ========================================================= */
+function atualizarRelogio() {
+    document.getElementById('headerClock').textContent = new Date().toLocaleTimeString('pt-BR');
+    if (ultimoFixTimestamp) {
+        var seg = Math.round((Date.now() - ultimoFixTimestamp) / 1000);
+        var txt = seg < 60 ? ('há ' + seg + 's') : ('há ' + Math.floor(seg/60) + 'min');
+        document.getElementById('chipAtualizacao').textContent = txt;
     }
 }
+setInterval(atualizarRelogio, 1000);
+atualizarRelogio();
 
-function avaliarParada(lat, lon, velocidade, callback) {
-    var vel = Number(velocidade);
-    if (!stopState.active) {
-        stopState.active = true;
-        stopState.lat = lat;
-        stopState.lon = lon;
-        stopState.since = Date.now();
-        stopState.alerted = false;
-    }
-
-    var d = dist(stopState.lat, stopState.lon, lat, lon);
-    var secsParado = (Date.now() - stopState.since) / 1000;
-
-    if (d > STOP_RADIUS_M || vel > 5) {
-        if (stopState.alerted) {
-            stopBadge.classList.remove('visible');
-            pararTimerParada();
-            if (stopMarker) { map.removeLayer(stopMarker); stopMarker = null; }
-            mcPts.classList.remove('stopped');
-            if (navigator.onLine && db) {
-                var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
-                db.ref('veiculos/' + vID + '/historico').push({
-                    tipo:'retomada_movimento', lat:lat, lon:lon,
-                    duracaoParadaSegundos:Math.round(secsParado),
-                    timestamp:Date.now(), hora:new Date().toLocaleTimeString(),
-                    data:new Date().toLocaleDateString('pt-BR'),
-                    dataISO:new Date().toISOString().slice(0,10)
-                });
-            }
-        }
-        stopState = {
-            active:true, lat:lat, lon:lon, since:Date.now(),
-            alerted:false, address:'', timerInterval:stopState.timerInterval
-        };
-        if (callback) callback();
-        return;
-    }
-
-    if (secsParado >= STOP_THRESHOLD && !stopState.alerted) {
-        stopState.alerted = true;
-        var endParada = lat.toFixed(5) + ', ' + lon.toFixed(5);
-
-        function finalizarParada(endStr) {
-            stopState.address = endStr;
-            stopAddressEl.textContent = endStr;
-            stopTimerEl.textContent = fmtDur(secsParado);
-            stopBadge.classList.add('visible');
-            mcPts.classList.add('stopped');
-            iniciarTimerParada();
-
-            if (stopMarker) map.removeLayer(stopMarker);
-            var stopIcon = L.divIcon({
-                className:'',
-                html:'<div style="background:#ff6b35;border:2px solid #fff;border-radius:50%;width:18px;height:18px"></div>',
-                iconSize:[18,18], iconAnchor:[9,9]
-            });
-            stopMarker = L.marker([lat, lon], {icon:stopIcon})
-                .bindPopup('<b>Parada</b><br>' + endStr + '<br>' + fmtDur(secsParado))
-                .addTo(map).openPopup();
-
-            if (navigator.onLine && db) {
-                var vID2 = document.getElementById('veiculoID').value || 'VEICULO-01';
-                db.ref('veiculos/' + vID2 + '/historico').push({
-                    tipo:'parada_detectada', lat:lat, lon:lon, endereco:endStr,
-                    duracaoSegundos:Math.round(secsParado),
-                    timestamp:Date.now(), hora:new Date().toLocaleTimeString(),
-                    data:new Date().toLocaleDateString('pt-BR'),
-                    dataISO:new Date().toISOString().slice(0,10)
-                });
-            }
-
-            document.getElementById('statusDot').className = 'status-dot stop';
-            statusText.innerHTML = 'PARADO ha ' + fmtDur(secsParado) + '<br>' + endStr;
-            if (callback) callback();
-        }
-
-        if (navigator.onLine) {
-            buscarEndereco(lat, lon, function(end) {
-                if (end) endParada = end.rua + ', ' + end.bairro + ' - ' + end.cidade;
-                finalizarParada(endParada);
-            });
-        } else {
-            finalizarParada(endParada);
-        }
-        return;
-    }
-
-    if (callback) callback();
+/* =========================================================
+   BANCO DE DADOS LOCAL (IndexedDB) — MODO OFFLINE
+   ========================================================= */
+var IDB_NAME = 'gps_local';
+function obterIDB(cb) {
+    var req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = function(e) { e.target.result.createObjectStore('fila', {autoIncrement:true}); };
+    req.onsuccess = function(e) { cb(e.target.result); };
 }
 
-// ═══════════════════════════════════════════════════
-//  INDEXEDDB
-// ═══════════════════════════════════════════════════
-var IDB_NAME = 'gps_offline';
-var STORE    = 'fila';
-
-function abrirIDB(cb) {
-    try {
-        var req = indexedDB.open(IDB_NAME, 1);
-        req.onupgradeneeded = function(e) {
-            var idb = e.target.result;
-            if (!idb.objectStoreNames.contains(STORE)) {
-                idb.createObjectStore(STORE, {autoIncrement:true});
+function salvarOffline(dados) {
+    obterIDB(function(idb) {
+        var tx = idb.transaction('fila', 'readwrite');
+        tx.objectStore('fila').add({ vID: document.getElementById('veiculoID').value, dados: dados });
+        tx.oncomplete = function() {
+            atualizarBadgeOffline();
+            // Agenda sincronização em segundo plano (funciona mesmo com o app minimizado, em navegadores compatíveis)
+            if (swRegistration && 'sync' in swRegistration) {
+                swRegistration.sync.register('sync-fila-offline').catch(function(){});
             }
         };
-        req.onsuccess = function(e) { cb(null, e.target.result); };
-        req.onerror   = function(e) { cb(e.target.error, null); };
-    } catch(e) { cb(e, null); }
-}
-
-function salvarNaFila(dados, cb) {
-    abrirIDB(function(err, idb) {
-        if (err) { if (cb) cb(err); return; }
-        var tx = idb.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).add(dados);
-        tx.oncomplete = function() { if (cb) cb(null); };
-        tx.onerror    = function() { if (cb) cb(tx.error); };
     });
 }
 
-function lerTodasChaves(cb) {
-    abrirIDB(function(err, idb) {
-        if (err) { cb(err, []); return; }
-        var tx  = idb.transaction(STORE, 'readonly');
-        var req = tx.objectStore(STORE).getAllKeys();
-        req.onsuccess = function() { cb(null, req.result); };
-        req.onerror   = function() { cb(req.error, []); };
+function atualizarBadgeOffline() {
+    obterIDB(function(idb) {
+        var tx = idb.transaction('fila', 'readonly');
+        var req = tx.objectStore('fila').getAllKeys();
+        req.onsuccess = function() {
+            var n = req.result.length;
+            var badge = document.getElementById('offlineBadge');
+            document.getElementById('chipFila').textContent = n;
+            document.getElementById('chipFila').className = 'tchip-value' + (n > 0 ? ' warn' : '');
+            if (n > 0) { badge.classList.add('visible'); document.getElementById('pendingCount').textContent = n + ' pendentes'; }
+            else { badge.classList.remove('visible'); }
+        };
     });
 }
-
-function lerItem(idb, chave, cb) {
-    var tx  = idb.transaction(STORE, 'readonly');
-    var req = tx.objectStore(STORE).get(chave);
-    req.onsuccess = function() { cb(null, req.result); };
-    req.onerror   = function() { cb(req.error, null); };
-}
-
-function removerDaFila(chave, cb) {
-    abrirIDB(function(err, idb) {
-        if (err) { if (cb) cb(err); return; }
-        var tx = idb.transaction(STORE, 'readwrite');
-        tx.objectStore(STORE).delete(chave);
-        tx.oncomplete = function() { if (cb) cb(null); };
-        tx.onerror    = function() { if (cb) cb(tx.error); };
-    });
-}
-
-function contarFila(cb) {
-    lerTodasChaves(function(err, keys) { cb(err ? 0 : keys.length); });
-}
-
-function atualizarBadge() {
-    contarFila(function(n) {
-        if (!navigator.onLine || n > 0) {
-            offlineBadge.classList.add('visible');
-            pendingCountEl.textContent = n + (n !== 1 ? ' pendentes' : ' pendente');
-        } else {
-            offlineBadge.classList.remove('visible');
-        }
-    });
-}
-
-// ═══════════════════════════════════════════════════
-//  SINCRONIZAÇÃO
-// ═══════════════════════════════════════════════════
-var sincronizando = false;
 
 function sincronizarFila() {
-    if (sincronizando || !navigator.onLine || !db) return;
-    sincronizando = true;
-
-    lerTodasChaves(function(err, chaves) {
-        if (err || !chaves.length) { sincronizando = false; return; }
-
-        abrirIDB(function(idbErr, idb) {
-            if (idbErr) { sincronizando = false; return; }
-            var idx = 0;
-            var sincronizados = 0;
-
-            function processarProximo() {
-                if (idx >= chaves.length) {
-                    sincronizando = false;
-                    atualizarBadge();
-                    if (sincronizados > 0) {
-                        statusText.textContent = sincronizados + ' registros sincronizados!';
-                    }
-                    return;
-                }
-
-                var chave = chaves[idx++];
-                lerItem(idb, chave, function(err2, item) {
-                    if (err2 || !item) { processarProximo(); return; }
-
-                    var vID   = item.vID || document.getElementById('veiculoID').value || 'VEICULO-01';
-                    var dados = item.dados;
-
-                    if (!dados.dataISO && dados.timestamp) {
-                        var d = new Date(dados.timestamp);
-                        dados.dataISO = d.toISOString().slice(0, 10);
-                        dados.data    = d.toLocaleDateString('pt-BR');
-                        dados.hora    = dados.hora || d.toLocaleTimeString();
-                    }
-
-                    function enviarParaFirebase() {
-                        db.ref('veiculos/' + vID + '/historico').push(dados)
-                            .then(function() {
-                                removerDaFila(chave, function() {
-                                    sincronizados++;
-                                    setTimeout(processarProximo, 1100);
-                                });
-                            })
-                            .catch(function() { processarProximo(); });
-                    }
-
-                    if (!dados.endereco && dados.lat && dados.lon && navigator.onLine) {
-                        buscarEndereco(dados.lat, dados.lon, function(end) {
-                            if (end) {
-                                dados.endereco = end;
-                                dados.enderecoCompleto = end.rua + ', ' + end.bairro + ' - ' + end.cidade + '/' + end.uf;
-                            }
-                            enviarParaFirebase();
-                        });
-                    } else {
-                        enviarParaFirebase();
-                    }
+    if (!navigator.onLine) return;
+    obterIDB(function(idb) {
+        var tx = idb.transaction('fila', 'readwrite');
+        var store = tx.objectStore('fila');
+        var cursorReq = store.openCursor();
+        cursorReq.onsuccess = function(e) {
+            var cursor = e.target.result;
+            if (cursor) {
+                var item = cursor.value;
+                db.ref('veiculos/' + item.vID + '/historico').push(item.dados).then(function() {
+                    cursor.delete();
+                    cursor.continue();
                 });
+            } else {
+                atualizarBadgeOffline();
             }
-            processarProximo();
-        });
+        };
+    });
+}
+window.addEventListener('online', sincronizarFila);
+
+/* =========================================================
+   GEOCODIFICAÇÃO REVERSA — RUA / BAIRRO / CIDADE (com throttle)
+   ========================================================= */
+var ultimoGeocodeTs = 0;
+var ultimoGeocodePos = null;
+
+function distanciaMetros(p1, p2) {
+    var R = 6371000;
+    var dLat = (p2[0]-p1[0]) * Math.PI/180;
+    var dLon = (p2[1]-p1[1]) * Math.PI/180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function precisaGeocodificar(p) {
+    if (!ultimoGeocodePos) return true;
+    if (Date.now() - ultimoGeocodeTs > 20000) return true;          // a cada 20s, no máx.
+    if (distanciaMetros(ultimoGeocodePos, p) > 60) return true;      // ou se moveu +60m
+    return false;
+}
+
+function atualizarEndereco(lat, lon, dados, vID) {
+    fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1', {
+        headers: { 'User-Agent': 'EvertonGPSPRO/1.0' }
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data) {
+        var addr = data.address || {};
+        var rua = addr.road || addr.pedestrian || addr.cycleway || 'Via não identificada';
+        var numero = addr.house_number ? ', ' + addr.house_number : '';
+        var bairro = addr.suburb || addr.neighbourhood || addr.city_district || addr.quarter || 'Não identificado';
+        var cidade = addr.city || addr.town || addr.village || addr.municipality || 'Não identificada';
+
+        dados.rua = rua + numero;
+        dados.bairro = bairro;
+        dados.cidade = cidade;
+        dados.endereco = rua + numero + ' - ' + bairro + ' - ' + cidade;
+
+        document.getElementById('locRua').textContent = rua + numero;
+        document.getElementById('locBairro').textContent = bairro;
+        document.getElementById('locCidade').textContent = cidade;
+        document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
+
+        db.ref('veiculos/' + vID + '/atual').set(dados);
+        db.ref('veiculos/' + vID + '/historico').push(dados);
+    })
+    .catch(function() {
+        dados.endereco = 'Lat: ' + lat.toFixed(4) + ', Lon: ' + lon.toFixed(4);
+        db.ref('veiculos/' + vID + '/atual').set(dados);
+        db.ref('veiculos/' + vID + '/historico').push(dados);
     });
 }
 
-window.addEventListener('online',  function() { atualizarBadge(); sincronizarFila(); });
-window.addEventListener('offline', function() { atualizarBadge(); });
+/* =========================================================
+   PROCESSAR POSIÇÃO CAPTURADA
+   ========================================================= */
+function processarPosicao(pos) {
+    var lat = pos.coords.latitude;
+    var lon = pos.coords.longitude;
+    var vel = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0;
+    var agora = new Date();
 
-// ═══════════════════════════════════════════════════
-//  MAPA
-// ═══════════════════════════════════════════════════
-var carroIconeHTML =
-    '<div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;' +
-    'background:#00ff88;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,.5)">' +
-    '<svg width="18" height="18" viewBox="0 0 24 24" fill="#121212">' +
-    '<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5A1.5 1.5 0 0 1 21 12.5v4A1.5 1.5 0 0 1 19.5 18H19a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0h-.5A1.5 1.5 0 0 1 3 16.5v-4A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1-3H8.1l-1 3zM7 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>' +
-    '</svg></div>';
-
-var carroIcone = L.divIcon({
-    className:'',
-    html: carroIconeHTML,
-    iconSize:[34,34], iconAnchor:[17,17]
-});
-
-function initMap() {
-    map = L.map('map', {
-        zoomControl: true,
-        attributionControl: false
-    }).setView([-23.5505, -46.6333], 16);
-
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution:'© OpenStreetMap',
-        maxZoom:19
-    }).addTo(map);
-
-    marcador = L.marker([-23.5505, -46.6333], {icon:carroIcone}).addTo(map);
-}
-
-initMap();
-
-// ═══════════════════════════════════════════════════
-//  HELPERS
-// ═══════════════════════════════════════════════════
-function mostrarErro(origem, msg) {
-    errorLog.style.display = 'block';
-    errorLog.innerHTML += '[' + origem + '] ' + msg + '<br>';
-    document.getElementById('statusDot').className = 'status-dot error';
-    document.getElementById('gpsSignal').className = 'gps-signal';
-}
-
-function buscarEndereco(lat, lon, cb) {
-    if (!navigator.onLine) { cb(null); return; }
-    var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' +
-              lat + '&lon=' + lon + '&accept-language=pt-BR';
-
-    var xhr = new XMLHttpRequest();
-    var done = false;
-    var timer = setTimeout(function() {
-        if (!done) { done = true; xhr.abort(); cb(null); }
-    }, 8000);
-
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState !== 4 || done) return;
-        done = true;
-        clearTimeout(timer);
-        try {
-            var d = JSON.parse(xhr.responseText);
-            cb({
-                rua:    d.address.road || 'Rua nao identificada',
-                bairro: d.address.suburb || d.address.neighbourhood || d.address.village || '',
-                cidade: d.address.city || d.address.town || d.address.municipality || '',
-                uf:     d.address.state || ''
-            });
-        } catch(e) { cb(null); }
+    var dados = {
+        lat: lat, lon: lon, velocidade: vel,
+        endereco: "Buscando endereço...",
+        timestamp: agora.getTime(),
+        hora: agora.toLocaleTimeString('pt-BR'),
+        dataISO: agora.toISOString().slice(0,10)
     };
-    xhr.onerror = function() {
-        if (!done) { done = true; clearTimeout(timer); cb(null); }
-    };
-    try {
-        xhr.open('GET', url, true);
-        xhr.send();
-    } catch(e) { done = true; clearTimeout(timer); cb(null); }
-}
 
-function atualizarMapaLocal(dados, vID, endereco) {
-    var pos = [dados.lat, dados.lon];
-    historicoRota.push(pos);
-    if (historicoRota.length > 50) historicoRota.shift();
-    marcador.setLatLng(pos);
-    map.flyTo(pos, 17);
-    if (linhaRota) map.removeLayer(linhaRota);
-    linhaRota = L.polyline(historicoRota, {color:'#00ff88', weight:5, opacity:.8}).addTo(map);
+    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
+    ultimoFixTimestamp = agora.getTime();
 
-    var endComp = endereco
-        ? (endereco.rua + ', ' + endereco.bairro + ' - ' + endereco.cidade + '/' + endereco.uf)
-        : (dados.lat.toFixed(5) + ', ' + dados.lon.toFixed(5));
+    // Atualização visual no mapa
+    var p = [lat, lon];
+    historicoRota.push(p);
+    marcador.setLatLng(p);
+    if (!linhaRota) { linhaRota = L.polyline(historicoRota, {color:'#00ffa6', weight:5}).addTo(map); }
+    else { linhaRota.setLatLngs(historicoRota); }
+    map.flyTo(p, 16);
 
-    marcador.bindPopup('<b>' + vID + '</b><br>' + endComp + '<br>' + dados.velocidade + ' km/h').openPopup();
+    // Botões de navegação externa
+    document.getElementById('btnExtMaps').href = 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon;
+    document.getElementById('btnExtWaze').href = 'waze://?ll=' + lat + ',' + lon + '&navigate=yes';
+    document.getElementById('btnExtMaps').style.display = 'inline-flex';
+    document.getElementById('btnExtWaze').style.display = 'inline-flex';
 
+    // Métricas e horário
     totalRegistros++;
     document.getElementById('metricsGrid').style.display = 'flex';
-    document.getElementById('mv-vel').textContent  = dados.velocidade;
-    document.getElementById('mv-acc').textContent  = dados.acuracia;
-    document.getElementById('mv-pts').textContent  = totalRegistros;
-    document.getElementById('mv-time').textContent = dados.hora;
+    document.getElementById('mv-vel').textContent = vel;
+    document.getElementById('mv-pts').textContent = totalRegistros;
+    document.getElementById('locHora').textContent = dados.hora;
+    document.getElementById('locData').textContent = agora.toLocaleDateString('pt-BR');
 
+    // Status "ao vivo"
     document.getElementById('statusDot').className = 'status-dot active';
-    var sig = document.getElementById('gpsSignal');
-    sig.className = 'gps-signal ' + (Number(dados.acuracia) <= 40 ? 'active' : 'weak');
-
-    return endComp;
-}
-
-// ═══════════════════════════════════════════════════
-//  ENVIO
-// ═══════════════════════════════════════════════════
-function enviarDados(dados) {
-    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
-    var agora = new Date();
-    dados.dataISO = agora.toISOString().slice(0, 10);
-    dados.data    = agora.toLocaleDateString('pt-BR');
-    dados.tipo    = dados.tipo || 'normal';
-
-    function continuar(endereco) {
-        var endComp = atualizarMapaLocal(dados, vID, endereco);
-
-        avaliarParada(dados.lat, dados.lon, dados.velocidade, function() {
-            if (navigator.onLine && db) {
-                db.ref('veiculos/' + vID + '/atual').set(dados);
-                db.ref('veiculos/' + vID + '/historico').push(dados)
-                    .then(function() {
-                        if (!stopState.alerted) {
-                            statusText.innerHTML = 'Transmitindo em tempo real!<br>' + endComp + '<br>' +
-                                dados.velocidade + ' km/h | ' + dados.acuracia + 'm';
-                        }
-                        sincronizarFila();
-                    })
-                    .catch(function(e) { mostrarErro('Firebase', e.message); });
-            } else {
-                salvarNaFila({vID:vID, dados:dados}, function(err) {
-                    if (err) { mostrarErro('IndexedDB', err.message); return; }
-                    if (!stopState.alerted) {
-                        statusText.innerHTML = 'Sem internet - salvo localmente.<br>' +
-                            dados.lat.toFixed(5) + ', ' + dados.lon.toFixed(5) + '<br>' +
-                            dados.velocidade + ' km/h';
-                    }
-                    atualizarBadge();
-                });
-            }
-        });
-    }
+    document.getElementById('gpsSignal').classList.add('active');
+    document.getElementById('chipSinal').textContent = 'Ativo';
+    document.getElementById('chipSinal').className = 'tchip-value on';
 
     if (navigator.onLine) {
-        statusText.textContent = 'Buscando endereco...';
-        buscarEndereco(dados.lat, dados.lon, function(end) {
-            if (end) {
-                dados.endereco         = end;
-                dados.enderecoCompleto = end.rua + ', ' + end.bairro + ' - ' + end.cidade + '/' + end.uf;
-            }
-            continuar(end);
-        });
+        document.getElementById('statusText').textContent = 'Buscando endereço atual...';
+        if (precisaGeocodificar(p)) {
+            ultimoGeocodeTs = Date.now();
+            ultimoGeocodePos = p;
+            atualizarEndereco(lat, lon, dados, vID);
+        } else {
+            // Reaproveita o último endereço conhecido, só atualiza posição/velocidade/horário no banco
+            dados.rua = document.getElementById('locRua').textContent;
+            dados.bairro = document.getElementById('locBairro').textContent;
+            dados.cidade = document.getElementById('locCidade').textContent;
+            dados.endereco = dados.rua + ' - ' + dados.bairro + ' - ' + dados.cidade;
+            document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
+            db.ref('veiculos/' + vID + '/atual').set(dados);
+            db.ref('veiculos/' + vID + '/historico').push(dados);
+        }
     } else {
-        continuar(null);
+        dados.endereco = 'Capturado offline (sem endereço)';
+        salvarOffline(dados);
+        document.getElementById('statusText').textContent = 'Rastreando ativo (offline): ' + dados.hora;
     }
 }
 
-// ═══════════════════════════════════════════════════
-//  RASTREAMENTO CONTINUO EM TEMPO REAL (watchPosition)
-// ═══════════════════════════════════════════════════
+function erroPosicao(err) {
+    document.getElementById('chipSinal').textContent = 'Sem sinal';
+    document.getElementById('chipSinal').className = 'tchip-value warn';
+    document.getElementById('gpsSignal').classList.remove('active');
+    document.getElementById('statusDot').className = 'status-dot warn';
+    document.getElementById('statusText').textContent = 'Sem sinal de GPS — verifique a localização do aparelho.';
+}
+
+/* =========================================================
+   CAPTURA CONTÍNUA
+   ========================================================= */
 var watchId = null;
-var ultimoEnvioTS = 0;
-var INTERVALO_MIN_ENVIO = 4000; // intervalo minimo entre envios ao Firebase (ms)
-
-function processarPosicao(pos, forcarEnvio) {
-    var agora = Date.now();
-    if (!forcarEnvio && (agora - ultimoEnvioTS) < INTERVALO_MIN_ENVIO) {
-        return; // ainda dentro do intervalo de seguranca, ignora esta leitura
+function iniciarGPS() {
+    if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(processarPosicao, erroPosicao, {
+            enableHighAccuracy: true, maximumAge: 0, timeout: 30000
+        });
     }
-    ultimoEnvioTS = agora;
-
-    enviarDados({
-        lat:        pos.coords.latitude,
-        lon:        pos.coords.longitude,
-        hora:       new Date().toLocaleTimeString(),
-        timestamp:  Date.now(),
-        acuracia:   Number(pos.coords.accuracy).toFixed(1),
-        velocidade: pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0
-    });
 }
-
-function iniciarRastreamentoContinuo() {
-    if (!navigator.geolocation) {
-        mostrarErro('GPS', 'Geolocalizacao nao disponivel neste dispositivo/navegador.');
-        return;
-    }
-    if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-    }
-    watchId = navigator.geolocation.watchPosition(
-        function(pos) { processarPosicao(pos, false); },
-        function(err) { mostrarErro('GPS', 'Erro ' + err.code + ': ' + err.message); },
-        {enableHighAccuracy:true, maximumAge:3000, timeout:20000}
-    );
-}
-
-// Botao manual: forca uma leitura e envio imediatos, ignorando o intervalo minimo
 function atualizarLocalizacao() {
-    var btn = document.getElementById('btnAtualizar');
-    if (btn) btn.classList.add('loading');
-
-    if (!navigator.geolocation) {
-        mostrarErro('GPS', 'Geolocalizacao nao disponivel.');
-        if (btn) btn.classList.remove('loading');
-        return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-        function(pos) {
-            if (btn) btn.classList.remove('loading');
-            processarPosicao(pos, true);
-        },
-        function(err) {
-            if (btn) btn.classList.remove('loading');
-            mostrarErro('GPS', 'Erro ' + err.code + ': ' + err.message);
-        },
-        {enableHighAccuracy:true, maximumAge:5000, timeout:20000}
-    );
+    navigator.geolocation.getCurrentPosition(processarPosicao, erroPosicao, {enableHighAccuracy:true});
 }
 
-// Seguranca extra: alguns navegadores reduzem a frequencia do watchPosition
-// quando a aba fica em segundo plano. Este temporizador garante que, se
-// nenhuma leitura ocorrer por mais de 15s, uma nova leitura sera forcada.
-setInterval(function() {
-    if (Date.now() - ultimoEnvioTS > 15000) {
+function centralizarMapa() { if (historicoRota.length > 0) map.flyTo(historicoRota[historicoRota.length - 1], 16); }
+function limparRota() { historicoRota = []; if (linhaRota) map.removeLayer(linhaRota); linhaRota = null; }
+
+/* =========================================================
+   RETOMADA AO VOLTAR PARA O APP (a tela apagada suspende a
+   captura — ao reabrir, força uma nova leitura imediatamente)
+   ========================================================= */
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') {
+        if (wakeLockDesejado) solicitarWakeLock();
         atualizarLocalizacao();
     }
-}, 15000);
+});
 
-function centralizarMapa() {
-    if (historicoRota.length > 0) {
-        map.flyTo(historicoRota[historicoRota.length - 1], 17);
-    }
-}
-
-function limparRota() {
-    historicoRota = [];
-    if (linhaRota) map.removeLayer(linhaRota);
-    statusText.textContent = 'Rota limpa localmente.';
-}
-
-// ═══════════════════════════════════════════════════
-//  CACHE
-// ═══════════════════════════════════════════════════
-var TILES_CACHE_NAME = 'gps-tiles-v1';
-
-function latLonToTile(lat, lon, z) {
-    var n = Math.pow(2, z);
-    return {
-        x: Math.floor((lon + 180) / 360 * n),
-        y: Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n)
-    };
-}
-
-function cachearAreaAtual() {
-    if (!map) return;
-    var btn  = document.getElementById('btnCache');
-    var info = document.getElementById('cacheInfo');
-    btn.textContent = '...'; btn.disabled = true;
-    info.textContent = '📡 baixando tiles para uso offline...';
-    info.className = '';
-
-    var center = map.getCenter();
-    var zoom   = map.getZoom();
-    var urls   = [];
-
-    for (var z = Math.max(13, zoom - 3); z <= Math.min(19, zoom + 2); z++) {
-        var t = latLonToTile(center.lat, center.lng, z);
-        for (var dx = -3; dx <= 3; dx++) {
-            for (var dy = -3; dy <= 3; dy++) {
-                var tx  = t.x + dx;
-                var ty  = t.y + dy;
-                urls.push('https://tile.openstreetmap.org/' + z + '/' + tx + '/' + ty + '.png');
-            }
-        }
-    }
-
-    function finalizar(ok, falhas) {
-        btn.textContent = '✅';
-        setTimeout(function() { btn.textContent = '💾'; btn.disabled = false; }, 2000);
-        info.textContent = ok + ' tiles salvos p/ uso offline' + (falhas ? ' (' + falhas + ' falharam)' : '');
-        info.className = 'cached';
-    }
-
-    if (!('caches' in window)) {
-        urls.forEach(function(u) { var img = new Image(); img.src = u; });
-        setTimeout(function() { finalizar(urls.length, 0); }, 2000);
+/* =========================================================
+   WAKE LOCK — mantém a tela ligada durante o rastreio
+   (os navegadores não permitem capturar GPS com a tela apagada;
+   esta é a forma compatível de garantir captura contínua)
+   ========================================================= */
+function solicitarWakeLock() {
+    if (!('wakeLock' in navigator)) {
+        document.getElementById('statusText').textContent = 'Este navegador não suporta manter a tela ativa automaticamente.';
+        document.getElementById('wakeLockToggle').checked = false;
+        wakeLockDesejado = false;
         return;
     }
-
-    caches.open(TILES_CACHE_NAME).then(function(cache) {
-        var ok = 0, falhas = 0;
-        var tarefas = urls.map(function(u) {
-            return fetch(u, {mode:'no-cors'}).then(function(res) {
-                if (res) { cache.put(u, res.clone()); ok++; }
-                else falhas++;
-            }).catch(function() { falhas++; });
+    navigator.wakeLock.request('screen').then(function(lock) {
+        wakeLock = lock;
+        wakeLock.addEventListener('release', function() {
+            wakeLock = null;
         });
-        Promise.all(tarefas).then(function() { finalizar(ok, falhas); });
     }).catch(function() {
-        urls.forEach(function(u) { var img = new Image(); img.src = u; });
-        setTimeout(function() { finalizar(urls.length, 0); }, 2000);
+        document.getElementById('wakeLockToggle').checked = false;
+        wakeLockDesejado = false;
     });
 }
+function alternarWakeLock() {
+    var ativo = document.getElementById('wakeLockToggle').checked;
+    wakeLockDesejado = ativo;
+    if (ativo) { solicitarWakeLock(); }
+    else if (wakeLock) { wakeLock.release(); wakeLock = null; }
+}
 
-// ═══════════════════════════════════════════════════
-//  HISTÓRICO
-// ═══════════════════════════════════════════════════
+/* =========================================================
+   PAINEL DE HISTÓRICO POR CALENDÁRIO
+   ========================================================= */
 function toggleHistorico() {
-    var body = document.getElementById('histBody');
+    var b = document.getElementById('histBody');
     var icon = document.getElementById('histToggleIcon');
-    var isOpen = body.classList.contains('open');
-    if (isOpen) {
-        body.classList.remove('open');
-        icon.textContent = 'v';
-    } else {
-        body.classList.add('open');
-        icon.textContent = '^';
-        if (!document.getElementById('filtroDataInicio').value) {
-            var hoje = new Date().toISOString().slice(0, 10);
-            document.getElementById('filtroDataInicio').value = hoje;
-            document.getElementById('filtroDataFim').value    = hoje;
-        }
-    }
+    b.classList.toggle('open');
+    icon.classList.toggle('open');
+    var hoje = new Date().toISOString().slice(0,10);
+    document.getElementById('filtroDataInicio').value = hoje;
+    document.getElementById('filtroDataFim').value = hoje;
 }
 
 function buscarHistorico() {
-    var btn = document.getElementById('btnBuscarHistorico');
-    btn.disabled = true; btn.textContent = 'Buscando...';
+    var inicio = document.getElementById('filtroDataInicio').value;
+    var fim = document.getElementById('filtroDataFim').value || inicio;
+    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
+    var painel = document.getElementById('histResultados');
 
-    var resultado = document.getElementById('histResultados');
-    var countEl   = document.getElementById('histCount');
-    resultado.innerHTML = '<div class="hist-empty">Buscando registros...</div>';
-    countEl.textContent = '';
-    document.getElementById('histMapBtn').classList.remove('visible');
+    painel.innerHTML = '<div style="color:#666; padding:10px;">Buscando registros...</div>';
 
-    var dataInicio = document.getElementById('filtroDataInicio').value;
-    var dataFim    = document.getElementById('filtroDataFim').value;
-    var horaInicio = document.getElementById('filtroHoraInicio').value || '00:00';
-    var horaFim    = document.getElementById('filtroHoraFim').value   || '23:59';
-    var filtroTipo = document.getElementById('filtroTipo').value;
-    var vID        = document.getElementById('veiculoID').value || 'VEICULO-01';
+    var tsInicio = new Date(inicio + 'T00:00:00').getTime();
+    var tsFim = new Date(fim + 'T23:59:59').getTime();
 
-    if (!dataInicio) {
-        resultado.innerHTML = '<div class="hist-empty">Selecione ao menos a data inicio</div>';
-        btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS'; return;
-    }
+    db.ref('veiculos/' + vID + '/historico').orderByChild('timestamp').startAt(tsInicio).endAt(tsFim).once('value', function(snap) {
+        painel.innerHTML = '';
+        var pontosHist = [];
+        snap.forEach(function(child) {
+            var d = child.val();
+            pontosHist.push([d.lat, d.lon]);
+            var item = document.createElement('div');
+            item.className = 'hist-item';
 
-    var tsInicio = new Date(dataInicio + 'T' + horaInicio + ':00').getTime();
-    var tsFim    = new Date((dataFim || dataInicio) + 'T' + horaFim + ':59').getTime();
+            var localExibido = d.endereco ? d.endereco : ('Lat: ' + d.lat.toFixed(4) + ', Lon: ' + d.lon.toFixed(4));
 
-    function renderizarResultados(registros) {
-        registros.sort(function(a, b) { return (a.timestamp || 0) - (b.timestamp || 0); });
-        historicoResultados = registros;
-
-        if (!registros.length) {
-            resultado.innerHTML = '<div class="hist-empty">Nenhum registro encontrado</div>';
-            countEl.textContent = '';
-            btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
-            return;
-        }
-
-        countEl.textContent = registros.length + ' registro(s) encontrado(s)';
-        resultado.innerHTML = '';
-
-        for (var i = 0; i < registros.length; i++) {
-            (function(d) {
-                var tipo = d.tipo || 'normal';
-                var tipoLabel = { parada_detectada:'parada', retomada_movimento:'retomada', normal:'normal' }[tipo] || 'normal';
-                var tipoEmoji = { parada_detectada:'P', retomada_movimento:'>', normal:'*' }[tipo] || '*';
-
-                var endStr = d.enderecoCompleto ||
-                    (d.endereco ? (d.endereco.rua + ', ' + d.endereco.bairro + ' - ' + d.endereco.cidade) :
-                    ((d.lat||0).toFixed(5) + ', ' + (d.lon||0).toFixed(5)));
-
-                var hora  = d.hora || new Date(d.timestamp || 0).toLocaleTimeString();
-                var data  = d.data || new Date(d.timestamp || 0).toLocaleDateString('pt-BR');
-                var extra = tipo === 'parada_detectada'
-                    ? ' · parado ' + fmtDur(d.duracaoSegundos || 0)
-                    : (tipo === 'retomada_movimento' ? ' · parado ' + fmtDur(d.duracaoParadaSegundos || 0) : '');
-
-                var el = document.createElement('div');
-                el.className = 'hist-item ' + tipoLabel;
-                el.innerHTML =
-                    '<div class="hist-item-hora">' + tipoEmoji + ' ' + hora +
-                    ' <span style="color:#555;font-size:.85em">· ' + data + '</span>' +
-                    '<span class="hist-item-tipo ' + tipoLabel + '">' + tipoLabel + '</span></div>' +
-                    '<div class="hist-item-end">' + endStr + '</div>' +
-                    '<div class="hist-item-meta">' + (d.velocidade||0) + ' km/h · ' + (d.acuracia||'?') + 'm' + extra + '</div>';
-
-                if (d.lat && d.lon) {
-                    el.onclick = function() {
-                        map.flyTo([d.lat, d.lon], 17);
-                        window.scrollTo({top:0, behavior:'smooth'});
-                    };
-                }
-                resultado.appendChild(el);
-            })(registros[i]);
-        }
-
-        if (registros.some(function(r) { return r.lat && r.lon; })) {
-            document.getElementById('histMapBtn').classList.add('visible');
-        }
-        btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
-    }
-
-    if (navigator.onLine && db) {
-        db.ref('veiculos/' + vID + '/historico')
-            .orderByChild('timestamp')
-            .startAt(tsInicio)
-            .endAt(tsFim)
-            .once('value')
-            .then(function(snap) {
-                var registros = [];
-                snap.forEach(function(child) {
-                    var d = child.val();
-                    if (!filtroTipo || d.tipo === filtroTipo || (!d.tipo && filtroTipo === 'normal')) {
-                        registros.push(d);
-                    }
-                });
-                renderizarResultados(registros);
-            })
-            .catch(function(e) {
-                resultado.innerHTML = '<div class="hist-empty" style="color:#ff9999">Erro: ' + e.message + '</div>';
-                btn.disabled = false; btn.textContent = 'BUSCAR REGISTROS';
-            });
-    } else {
-        lerTodasChaves(function(err, chaves) {
-            if (err) { btn.disabled = false; return; }
-            abrirIDB(function(idbErr, idb) {
-                if (idbErr) { btn.disabled = false; return; }
-                var registros = [];
-                var idx = 0;
-                function proxima() {
-                    if (idx >= chaves.length) { renderizarResultados(registros); return; }
-                    lerItem(idb, chaves[idx++], function(err2, item) {
-                        if (item && item.dados) {
-                            var d = item.dados;
-                            if (d.timestamp >= tsInicio && d.timestamp <= tsFim) {
-                                if (!filtroTipo || d.tipo === filtroTipo || (!d.tipo && filtroTipo === 'normal')) {
-                                    registros.push(d);
-                                }
-                            }
-                        }
-                        proxima();
-                    });
-                }
-                proxima();
-            });
+            item.innerHTML = '<span class="hr">' + d.hora + '</span> <span class="vel">— ' + d.velocidade + ' km/h</span>' +
+                              '<span class="addr">📍 ' + localExibido + '</span>';
+            item.onclick = function() { map.flyTo([d.lat, d.lon], 17); };
+            painel.appendChild(item);
         });
-    }
+
+        if (pontosHist.length > 0) {
+            if (linhaRota) map.removeLayer(linhaRota);
+            linhaRota = L.polyline(pontosHist, {color:'#2dd4ff', weight:5, dashArray:'5, 10'}).addTo(map);
+            map.fitBounds(linhaRota.getBounds());
+        } else {
+            painel.innerHTML = '<div style="color:var(--danger); padding:10px;">Nenhum registro encontrado no período.</div>';
+        }
+    });
 }
 
-function mostrarRotaHistorico() {
-    var pontos = [];
-    for (var i = 0; i < historicoResultados.length; i++) {
-        var r = historicoResultados[i];
-        if (r.lat && r.lon) pontos.push([r.lat, r.lon]);
-    }
-    if (!pontos.length) return;
-    if (linhaRota) map.removeLayer(linhaRota);
-    linhaRota = L.polyline(pontos, {color:'#00c8ff', weight:4, opacity:.85, dashArray:'8,4'}).addTo(map);
-    map.fitBounds(linhaRota.getBounds(), {padding:[20,20]});
-    window.scrollTo({top:0, behavior:'smooth'});
+/* =========================================================
+   INSTALAÇÃO PWA
+   ========================================================= */
+var defPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault(); defPrompt = e; document.getElementById('pwaInstallBtn').classList.add('visible');
+});
+function instalarPWA() {
+    if (defPrompt) { defPrompt.prompt(); defPrompt = null; document.getElementById('pwaInstallBtn').classList.remove('visible'); }
 }
 
-// ═══════════════════════════════════════════════════
-//  INIT
-// ═══════════════════════════════════════════════════
-atualizarBadge();
-iniciarRastreamentoContinuo();   // GPS continuo: a cada movimento detectado, ja envia (respeitando o intervalo minimo)
-atualizarLocalizacao();          // primeira leitura imediata, ao abrir o app
-setInterval(sincronizarFila, 30000);
+iniciarGPS();
+atualizarBadgeOffline();
 </script>
 </body>
-    </html>
+</html>
