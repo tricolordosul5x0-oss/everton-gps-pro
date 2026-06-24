@@ -2,595 +2,526 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Everton GPS - Admin Pro Master</title>
-
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Everton GPS PRO — Painel Admin</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
+        /* ============ TOKENS (mesmos do app principal) ============ */
         :root {
-            --primary: #00ff88;
-            --bg: #121212;
-            --card: #1e1e1e;
-            --accent: #00c8ff;
-            --highlight: #ff9900;
-            --text: #ffffff;
-            --border: #2a2a2a;
+            --bg-void: #0a0d12;
+            --bg-panel: #131820;
+            --bg-raised: #1a212b;
+            --border: rgba(255,255,255,.08);
+            --border-soft: rgba(255,255,255,.05);
+
+            --signal: #00ffa6;
+            --signal-dim: rgba(0,255,166,.16);
+            --telemetry: #2dd4ff;
+            --telemetry-dim: rgba(45,212,255,.14);
+            --amber: #ffb020;
+            --amber-dim: rgba(255,176,32,.14);
+            --danger: #ff5470;
+            --danger-dim: rgba(255,84,112,.14);
+
+            --ink-100: #eef2f6;
+            --ink-200: #c7d0db;
+            --ink-500: #74808f;
+            --ink-700: #46505c;
+
+            --radius-lg: 14px;
+            --radius-md: 10px;
+            --radius-sm: 7px;
+            --mono: 'SF Mono','Roboto Mono','Consolas',ui-monospace,monospace;
+            --sans: -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration:.001ms !important; transition-duration:.001ms !important; }
+        }
+        body {
+            margin:0; padding:12px; padding-bottom:28px;
+            background:
+                radial-gradient(circle at 12% 0%, rgba(0,255,166,.05), transparent 40%),
+                radial-gradient(circle at 90% 10%, rgba(45,212,255,.04), transparent 45%),
+                var(--bg-void);
+            color:var(--ink-200); font-family:var(--sans);
+            max-width:760px; margin-inline:auto;
         }
 
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { 
-            font-family: 'Segoe UI', Arial, sans-serif; 
-            background: var(--bg); 
-            color: var(--text);
-            padding: 20px;
+        header { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; margin-bottom:10px; }
+        .brand-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+        .brand { display:flex; align-items:center; gap:10px; }
+        .brand-mark { width:34px; height:34px; border-radius:9px; flex:none; background:linear-gradient(145deg, var(--signal-dim), var(--telemetry-dim)); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:1.05em; }
+        .brand-text h1 { margin:0; font-size:1em; letter-spacing:.5px; color:var(--ink-100); font-weight:700; }
+        .brand-text span { font-size:.68em; color:var(--telemetry); font-family:var(--mono); letter-spacing:1.2px; }
+        .admin-tag { font-size:.62em; font-family:var(--mono); color:var(--amber); border:1px solid rgba(255,176,32,.4); background:var(--amber-dim); padding:4px 9px; border-radius:6px; letter-spacing:.8px; }
+
+        .panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 14px 14px; position:relative; margin-bottom:10px; }
+        .panel-tag { position:absolute; top:-9px; left:12px; background:var(--bg-raised); padding:2px 9px; font-size:.62em; color:var(--signal); border:1px solid var(--border); border-radius:5px; font-family:var(--mono); letter-spacing:.8px; }
+
+        .field-label { font-size:.66em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.8px; font-family:var(--mono); margin-bottom:5px; display:block; }
+        input[type="text"], input[type="date"], input[type="time"], select {
+            padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-raised);
+            color:var(--ink-100); font-size:.92em; font-family:var(--mono); width:100%;
         }
+        input::placeholder { color:var(--ink-700); }
 
-        header {
-            background: var(--card);
-            padding: 20px;
-            border-bottom: 2px solid var(--primary);
-            border-radius: 10px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
+        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+        .field-block { margin-bottom:10px; }
+
+        .chips-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+        .veic-chip { font-family:var(--mono); font-size:.72em; padding:5px 10px; border-radius:20px; background:var(--bg-raised); border:1px solid var(--border); color:var(--telemetry); cursor:pointer; }
+        .veic-chip:active { border-color:var(--telemetry); }
+        .chips-hint { font-size:.68em; color:var(--ink-700); font-family:var(--mono); margin-top:4px; }
+
+        button.btn-primary {
+            width:100%; padding:14px; border:none; border-radius:var(--radius-md); font-weight:700; cursor:pointer; font-size:.95em; letter-spacing:1px;
+            background:linear-gradient(135deg,#00ffa6,#2dd4ff); color:#021410;
+            box-shadow:0 8px 20px -8px rgba(0,255,166,.45); margin-top:4px;
         }
-
-        .panel-container {
-            display: grid;
-            grid-template-columns: 1fr;
-            gap: 20px;
+        button.btn-primary:active { transform:scale(.985); }
+        button.btn-secondary {
+            width:100%; padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-raised);
+            color:var(--ink-200); cursor:pointer; font-size:.85em; font-family:var(--mono); margin-top:8px;
         }
+        button.btn-secondary[disabled] { opacity:.4; cursor:not-allowed; }
 
-        @media (min-width: 992px) {
-            .panel-container {
-                grid-template-columns: 1fr 400px;
-            }
-        }
+        /* ============ MAPA ============ */
+        .map-wrapper { position:relative; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); margin-bottom:10px; }
+        #map { height:320px; width:100%; background:var(--bg-raised); z-index:1; }
 
-        #map {
-            height: 620px;
-            width: 100%;
-            border-radius: 10px;
-            background: #252525;
-            border: 1px solid var(--border);
-        }
+        /* ============ STATS ============ */
+        .stats-grid { display:flex; flex-wrap:wrap; gap:8px; }
+        .stat-card { background:var(--bg-raised); border-radius:var(--radius-md); padding:11px 13px; border:1px solid var(--border-soft); flex:1 1 calc(33.33% - 6px); min-width:100px; }
+        .stat-label { font-size:.6em; color:var(--ink-500); text-transform:uppercase; font-family:var(--mono); letter-spacing:.5px; }
+        .stat-value { font-size:1.25em; font-weight:700; color:var(--signal); line-height:1.3; }
+        .stat-unit { font-size:.58em; color:var(--ink-700); font-family:var(--mono); }
 
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-        }
+        /* ============ LISTA DE PONTOS ============ */
+        #listaPontos { max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
+        .dia-separador { font-family:var(--mono); font-size:.68em; color:var(--ink-500); letter-spacing:.8px; text-transform:uppercase; padding:8px 2px 2px; border-top:1px dashed var(--border-soft); margin-top:4px; }
+        .dia-separador:first-child { border-top:none; margin-top:0; }
+        .hist-item { background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:.8em; cursor:pointer; }
+        .hist-item:active { border-color:var(--telemetry); }
+        .hist-item .hr { color:var(--ink-100); font-weight:700; font-family:var(--mono); }
+        .hist-item .vel { color:var(--ink-500); }
+        .hist-item .addr { color:var(--telemetry); display:block; margin-top:3px; }
+        .hint { color:var(--ink-500); padding:14px; text-align:center; font-size:.82em; font-family:var(--mono); }
+        .erro { color:var(--danger); background:var(--danger-dim); border:1px solid rgba(255,84,112,.35); border-radius:var(--radius-sm); padding:12px; text-align:center; font-size:.82em; }
 
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 18px;
-        }
+        footer.app-foot { text-align:center; font-size:.65em; color:var(--ink-700); font-family:var(--mono); margin-top:14px; letter-spacing:.4px; }
 
-        .card h3 {
-            color: var(--primary);
-            margin-bottom: 12px;
-            font-size: 0.9em;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+        .snap-status { font-size:.7em; font-family:var(--mono); color:var(--ink-500); text-align:center; margin:6px 0 10px; min-height:14px; }
+        .snap-status.ok { color:var(--signal); }
+        .snap-status.warn { color:var(--amber); }
 
-        .card.destaque h3 { color: var(--highlight); }
-        .card.destaque { border-color: #3a2a10; }
-
-        .card-sub {
-            font-size: 0.75em;
-            color: #888;
-            margin-top: -8px;
-            margin-bottom: 12px;
-            line-height: 1.4;
-        }
-
-        .address-box p {
-            font-size: 0.95em;
-            line-height: 1.6;
-            color: #ddd;
-        }
-        
-        .address-box strong { color: var(--accent); }
-
-        .filter-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .filter-group label {
-            font-size: 0.75em;
-            color: #888;
-            font-family: monospace;
-        }
-
-        input, select, button {
-            width: 100%;
-            padding: 10px;
-            background: #252525;
-            border: 1px solid var(--border);
-            color: white;
-            border-radius: 8px;
-            font-size: 0.9em;
-        }
-
-        button {
-            background: linear-gradient(135deg, #00ff88, #00c8ff);
-            color: black;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            transition: opacity 0.2s;
-            margin-top: 5px;
-        }
-
-        button.btn-destaque {
-            background: linear-gradient(135deg, #ff9900, #ffcc00);
-        }
-
-        button:hover { opacity: 0.9; }
-        button:disabled { opacity: 0.4; cursor: not-allowed; }
-
-        /* Estilos da Timeline */
-        .timeline-container {
-            margin-top: 10px;
-            background: #252525;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-
-        .timeline-slider {
-            -webkit-appearance: none;
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #444;
-            outline: none;
-            margin: 10px 0;
-            cursor: pointer;
-        }
-
-        .timeline-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: var(--primary);
-            cursor: pointer;
-        }
-
-        .resultado-box {
-            margin-top: 10px;
-            padding: 10px;
-            background: #252525;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-            min-height: 20px;
-        }
-
-        .resultado-box p { font-size: 0.9em; line-height: 1.5; color: #ddd; }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        .metric {
-            background: #252525;
-            padding: 10px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
-        }
-
-        .metric-label { font-size: 0.65em; color: #888; text-transform: uppercase; }
-        .metric-value { font-size: 1.2em; font-weight: bold; color: var(--primary); margin-top: 2px; }
-
-        .status-badge {
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8em;
-            font-weight: bold;
-            background: #252525;
-            color: var(--primary);
-            border: 1px solid var(--primary);
-        }
-
-        .legenda-mapa {
-            display: flex;
-            gap: 14px;
-            flex-wrap: wrap;
-            font-size: 0.72em;
-            color: #aaa;
-            margin-top: 8px;
-        }
-        .legenda-mapa span { display: flex; align-items: center; gap: 5px; }
-        .legenda-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+        @media (max-width:480px){ .grid-2 { grid-template-columns:1fr; } .stat-card { flex:1 1 calc(50% - 4px); } }
     </style>
 </head>
 <body>
 
 <header>
-    <div>
-        <h2 style="letter-spacing: 2px;">⚡ Everton GPS - Admin Pro</h2>
-        <p style="font-size: 0.75em; color: #888; margin-top: 4px;">PAINEL COMPLETO: INTERVALOS, LINHA DO TEMPO INDIVIDUAL E BUSCA PONTUAL</p>
+    <div class="brand-row">
+        <div class="brand">
+            <div class="brand-mark">🛰</div>
+            <div class="brand-text">
+                <h1>Everton GPS PRO</h1>
+                <span>PAINEL ADMIN · CONSULTA DE ROTAS</span>
+            </div>
+        </div>
+        <span class="admin-tag">SOMENTE LEITURA</span>
     </div>
-    <div class="status-badge" id="conexaoStatus">Inicializando...</div>
 </header>
 
-<div class="panel-container">
-    <div>
-        <div id="map"></div>
-        <div class="legenda-mapa">
-            <span><i class="legenda-dot" style="background:#00ff88;"></i> Rota do intervalo pesquisado</span>
-            <span><i class="legenda-dot" style="background:#ffaa00;"></i> Trajeto do dia (busca pontual)</span>
-            <span><i class="legenda-dot" style="background:#00c8ff;"></i> Posição selecionada</span>
-            <span><i class="legenda-dot" style="background:#ff9900;"></i> Posição no momento exato</span>
+<!-- FILTROS -->
+<div class="panel">
+    <span class="panel-tag">FILTROS</span>
+
+    <div class="field-block">
+        <span class="field-label">Veículo</span>
+        <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veículo">
+        <div class="chips-row" id="chipsVeiculos"></div>
+        <div class="chips-hint">Toque em um ID para selecioná-lo</div>
+    </div>
+
+    <div class="grid-2">
+        <div class="field-block">
+            <span class="field-label">Data início</span>
+            <input type="date" id="dataInicio">
+        </div>
+        <div class="field-block">
+            <span class="field-label">Data fim</span>
+            <input type="date" id="dataFim">
+        </div>
+    </div>
+    <div class="grid-2">
+        <div class="field-block">
+            <span class="field-label">Hora início</span>
+            <input type="time" id="horaInicio" value="00:00">
+        </div>
+        <div class="field-block">
+            <span class="field-label">Hora fim</span>
+            <input type="time" id="horaFim" value="23:59">
         </div>
     </div>
 
-    <div class="sidebar">
+    <button class="btn-primary" onclick="buscarRotas()">🔍 BUSCAR ROTA NO PERÍODO</button>
+</div>
 
-        <div class="card">
-            <h3>⏱️ Linha do Tempo do Trajeto</h3>
-            <div class="timeline-container">
-                <span class="metric-label">Arraste para percorrer os horários do mapa:</span>
-                <input type="range" id="timelineSlider" class="timeline-slider" min="0" max="0" value="0" oninput="navegarLinhaTempo(this.value)" disabled>
-                <div style="display: flex; justify-content: space-between; font-size: 0.75em; color: #888;">
-                    <span id="tempoInicioRoteiro">Início</span>
-                    <span id="tempoFimRoteiro">Fim</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="card destaque">
-            <h3>📍 Localizar em Dia e Horário Exato</h3>
-            <p class="card-sub">Informe um horário específico para descobrir onde o veículo estava naquele exato instante.</p>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>DATA</label>
-                    <input type="date" id="dataPontual">
-                </div>
-                <div class="filter-group">
-                    <label>HORÁRIO</label>
-                    <input type="time" id="horaPontualBusca" value="12:00">
-                </div>
-            </div>
-            <button id="btnLocalizarMomento" class="btn-destaque" onclick="localizarMomentoExato()">Localizar Neste Momento</button>
-            <div class="resultado-box" id="resultadoPontual">
-                <p style="color:#888;">Escolha um dia e horário para localizar o veículo.</p>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Filtros por Intervalo Largo</h3>
-            <div class="filter-group" style="margin-bottom: 10px;">
-                <label>ID DO VEÍCULO</label>
-                <input type="text" id="veiculoIDAdmin" value="VEICULO-01">
-            </div>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>DATA INICIAL (DE)</label>
-                    <input type="date" id="filtroDataInicio">
-                </div>
-                <div class="filter-group">
-                    <label>DATA FINAL (ATÉ)</label>
-                    <input type="date" id="filtroDataFim">
-                </div>
-            </div>
-            <div class="filter-row">
-                <div class="filter-group">
-                    <label>HORA INICIAL (DE)</label>
-                    <input type="time" id="filtroHoraInicio" value="00:00">
-                </div>
-                <div class="filter-group">
-                    <label>HORA FINAL (ATÉ)</label>
-                    <input type="time" id="filtroHoraFim" value="23:59">
-                </div>
-            </div>
-            <button id="btnFiltrar" onclick="aplicarFiltrosEBuscar()">Pesquisar e Aplicar Rota</button>
-        </div>
-
-        <div class="card">
-            <h3>Endereço Completo Identificado</h3>
-            <div class="address-box" id="addressDetails">
-                <p>Aguardando coordenadas de pesquisa...</p>
-            </div>
-        </div>
-
-        <div class="card">
-            <h3>Métricas do Percurso</h3>
-            <div class="metrics-grid">
-                <div class="metric">
-                    <div class="metric-label">Velocidade no Ponto</div>
-                    <div class="metric-value" id="adm-vel">0 km/h</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Precisão do Sinal</div>
-                    <div class="metric-value" id="adm-acc">-</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Horário do Ponto</div>
-                    <div class="metric-value" id="adm-time" style="font-size: 0.95em;">-</div>
-                </div>
-                <div class="metric">
-                    <div class="metric-label">Pontos Tratados</div>
-                    <div class="metric-value" id="adm-pts">0</div>
-                </div>
-            </div>
-        </div>
+<!-- ESTATÍSTICAS -->
+<div class="panel" id="statsPanel" style="display:none">
+    <span class="panel-tag">RESUMO DO TRAJETO</span>
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Pontos</div><div class="stat-value" id="statPontos">0</div><div class="stat-unit">REGISTROS</div></div>
+        <div class="stat-card"><div class="stat-label">Distância</div><div class="stat-value" id="statDist">0</div><div class="stat-unit">KM</div></div>
+        <div class="stat-card"><div class="stat-label">Vel. média</div><div class="stat-value" id="statVelMed">0</div><div class="stat-unit">KM/H</div></div>
+        <div class="stat-card"><div class="stat-label">Vel. máxima</div><div class="stat-value" id="statVelMax">0</div><div class="stat-unit">KM/H</div></div>
+        <div class="stat-card"><div class="stat-label">Duração</div><div class="stat-value" id="statDuracao" style="font-size:1em">—</div><div class="stat-unit">PERÍODO</div></div>
+        <div class="stat-card"><div class="stat-label">Período</div><div class="stat-value" id="statPeriodo" style="font-size:.78em; color:var(--ink-100)">—</div></div>
     </div>
 </div>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<!-- MAPA -->
+<div class="map-wrapper">
+    <div id="map"></div>
+</div>
+<div class="snap-status" id="snapStatus"></div>
 
+<!-- LISTA DETALHADA -->
+<div class="panel">
+    <span class="panel-tag">TRAJETO DETALHADO · RUA / BAIRRO / CIDADE</span>
+    <div id="listaPontos"><div class="hint">Escolha um veículo e um período, depois toque em "Buscar rota".</div></div>
+    <button class="btn-secondary" id="btnExportar" onclick="exportarCSV()" disabled>⬇ EXPORTAR CSV</button>
+</div>
+
+<footer class="app-foot">EVERTON GPS PRO · PAINEL ADMINISTRATIVO · DADOS SOMENTE LEITURA</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// ═══════════════════════════════════════════════════
-//  CONFIGURAÇÃO FIREBASE
-// ═══════════════════════════════════════════════════
+/* ============================================================
+   Mesma configuração do Firebase usada no app de campo —
+   este painel só LÊ os dados, nunca grava.
+   ============================================================ */
 var firebaseConfig = {
-    apiKey:            "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
-    authDomain:        "everton-gps.firebaseapp.com",
-    databaseURL:       "https://everton-gps-default-rtdb.firebaseio.com",
-    projectId:         "everton-gps",
-    storageBucket:     "everton-gps.appspot.com",
+    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    authDomain: "everton-gps.firebaseapp.com",
+    databaseURL: "https://everton-gps-default-rtdb.firebaseio.com",
+    projectId: "everton-gps",
+    storageBucket: "everton-gps.appspot.com",
     messagingSenderId: "688936933095",
-    appId:             "1:688936933095:web:5508a8e1008f1b4020a1db"
+    appId: "1:688936933095:web:5508a8e1008f1b4020a1db"
 };
-
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
-var map, adminMarker, rotaVerdePolyline, rotaDoDiaPolyline, pontoExatoMarker = null;
-var firebaseRefHistorico = null;
-var firebaseRefMomento = null;
-var logsFiltradosGlobais = [];
+var map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-29.6133,-52.1919], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
 
-var carroIconeAdmin = L.divIcon({
-    className: '',
-    html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#00c8ff;border:3px solid #fff;border-radius:50%;box-shadow:0 3px 8px rgba(0,0,0,0.6)">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="#121212">
-                <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5A1.5 1.5 0 0 1 21 12.5v4A1.5 1.5 0 0 1 19.5 18H19a2 2 0 0 1-4 0H9a2 2 0 0 1-4 0h-.5A1.5 1.5 0 0 1 3 16.5v-4A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1-3H8.1l-1 3zM7 15.5a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm10 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/>
-            </svg>
-           </div>`,
-    iconSize: [36, 36], iconAnchor: [18, 18]
-});
+var camadaRotaBruta = null;   // linha reta provisória, exibida enquanto o ajuste às ruas não termina
+var camadasSnap = [];         // linhas já ajustadas à malha viária (uma por "viagem")
+var marcadores = [];
+var ultimaConsulta = [];
+var ultimoVeiculo = '';
 
-var iconeMomentoExato = L.divIcon({
-    className: '',
-    html: `<div style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#ff9900;border:3px solid #fff;border-radius:50%;box-shadow:0 3px 10px rgba(0,0,0,0.7);">
-            <svg width="19" height="19" viewBox="0 0 24 24" fill="#121212">
-                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/>
-            </svg>
-           </div>`,
-    iconSize: [36, 36], iconAnchor: [18, 32], popupAnchor: [0, -30]
-});
+/* Limite de pontos para tentar ajustar à malha viária — protege o servidor público
+   do OSRM de receber consultas enormes. Acima disso, mantém a linha reta. */
+var LIMITE_PONTOS_AJUSTE = 4000;
+/* Gaps maiores que isso entre dois pontos são tratados como "viagens" separadas
+   (veículo parado/desligado) — evita puxar uma linha reta cruzando a cidade. */
+var GAP_VIAGEM_MS = 5 * 60 * 1000;
 
-function initAdminMap() {
-    map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-23.5505, -46.6333], 15);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-    rotaDoDiaPolyline = L.polyline([], { color: '#ffaa00', weight: 4, opacity: 0.45, dashArray: '6 8' }).addTo(map);
-    rotaVerdePolyline = L.polyline([], { color: '#00ff88', weight: 6, opacity: 0.85 }).addTo(map);
-    adminMarker = L.marker([-23.5505, -46.6333], { icon: carroIconeAdmin }).addTo(map);
+/* ============================================================
+   Distância entre dois pontos (Haversine) — mesma fórmula do app de campo
+   ============================================================ */
+function distanciaMetros(p1, p2) {
+    var R = 6371000;
+    var dLat = (p2[0]-p1[0]) * Math.PI/180;
+    var dLon = (p2[1]-p1[1]) * Math.PI/180;
+    var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
+    return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
 
-function normalizarLog(log) {
-    if (!log || log.lat === undefined || log.lon === undefined) return null;
-    var dataISO = log.dataISO;
-    var hora = log.hora;
-    var tsMs = null;
+function formatarDuracao(ms) {
+    var min = Math.max(0, Math.round(ms/60000));
+    var h = Math.floor(min/60), m = min%60;
+    return h > 0 ? (h+'h '+m+'min') : (m+'min');
+}
+function formatarDataBR(iso) {
+    var p = iso.split('-');
+    return p[2]+'/'+p[1]+'/'+p[0];
+}
 
-    if (log.timestamp) {
-        tsMs = Number(log.timestamp);
-        if (!dataISO) dataISO = new Date(tsMs).toISOString().slice(0, 10);
-        if (!hora) hora = new Date(tsMs).toLocaleTimeString('pt-BR');
-    } else if (dataISO && hora) {
-        var partes = hora.split(':');
-        var dCalc = new Date(dataISO + 'T00:00:00');
-        dCalc.setHours(Number(partes[0]) || 0, Number(partes[1]) || 0, Number(partes[2]) || 0, 0);
-        tsMs = dCalc.getTime();
+/* ============================================================
+   AJUSTE DA ROTA À MALHA VIÁRIA (map matching)
+   Usa o serviço público de demonstração do OSRM para "encaixar"
+   a sequência de pontos GPS nas ruas reais, em vez de ligá-los
+   por uma linha reta. É um serviço gratuito e sem chave, mas é
+   uma demo pública — sem garantia de disponibilidade/limite de
+   uso. Para uso intenso em produção, considere hospedar seu
+   próprio OSRM ou usar um serviço pago (ex.: Mapbox Map Matching).
+   ============================================================ */
+function dividirEmViagens(pontos) {
+    var viagens = [];
+    var atual = [pontos[0]];
+    for (var i = 1; i < pontos.length; i++) {
+        if (pontos[i].timestamp - pontos[i-1].timestamp > GAP_VIAGEM_MS) {
+            viagens.push(atual);
+            atual = [];
+        }
+        atual.push(pontos[i]);
     }
-    return {
-        lat: Number(log.lat), lon: Number(log.lon),
-        dataISO: dataISO, hora: hora, tsMs: tsMs,
-        velocidade: log.velocidade, acuracia: log.acuracia
-    };
+    viagens.push(atual);
+    return viagens;
 }
 
-function processarERealinharRotaPelasRuas(pontosBrutos) {
-    if (pontosBrutos.length < 2) return;
-    var pontosParaApi = pontosBrutos.slice(0, 50);
-    var stringCoordenadas = pontosParaApi.map(pt => pt[1] + ',' + pt[0]).join(';');
-    var urlOsrm = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
-    fetch(urlOsrm).then(res => res.json()).then(dadosOsrm => {
-        if (dadosOsrm.routes && dadosOsrm.routes.length > 0) {
-            var coordsAlinhadas = dadosOsrm.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            rotaVerdePolyline.setLatLngs(coordsAlinhadas);
+function osrmMatch(chunk) {
+    var coordsStr = chunk.map(function(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }).join(';');
+    var tsStr = chunk.map(function(p) { return Math.round(p.timestamp / 1000); }).join(';');
+    var radStr = chunk.map(function() { return '25'; }).join(';');
+    var url = 'https://router.project-osrm.org/match/v1/driving/' + coordsStr +
+              '?geometries=geojson&overview=full&timestamps=' + tsStr + '&radiuses=' + radStr;
+
+    return fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+        if (data.code !== 'Ok' || !data.matchings || !data.matchings.length) {
+            throw new Error('sem correspondência na malha viária');
         }
-    }).catch(e => console.warn(e));
+        var coords = [];
+        data.matchings.forEach(function(m) {
+            m.geometry.coordinates.forEach(function(c) { coords.push([c[1], c[0]]); }); // [lon,lat] -> [lat,lon]
+        });
+        return coords;
+    });
 }
 
-var temporizadorBuscaEndereco;
-function traduzirCoordenadasParaEnderecoCompleto(lat, lon, marcadorAlvo, rotuloPopup) {
-    marcadorAlvo = marcadorAlvo || adminMarker;
-    rotuloPopup = rotuloPopup || 'Posição Atual';
-    clearTimeout(temporizadorBuscaEndereco);
-    
-    temporizadorBuscaEndereco = setTimeout(function() {
-        var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=pt-BR&zoom=18';
-        fetch(url, { headers: { 'User-Agent': 'EvertonGPSTimelineProMaster' } })
-            .then(res => res.json())
-            .then(d => {
-                if (d && d.display_name) {
-                    document.getElementById('addressDetails').innerHTML = `<p><strong>Endereço Oficial:</strong><br>${d.display_name}</p>`;
-                    var partes = d.display_name.split(',');
-                    var resumo = partes[0] + (partes[1] ? ',' + partes[1] : '');
-                    marcadorAlvo.bindPopup(`<b>${rotuloPopup}:</b><br>${resumo}`).openPopup();
-                }
-            }).catch(() => {
-                document.getElementById('addressDetails').innerHTML = `<p><strong>Coordenadas:</strong> ${lat}, ${lon}</p>`;
+// Ajusta uma "viagem" (sequência contínua de pontos), dividindo em lotes
+// menores quando necessário (o serviço público tem limite de coordenadas
+// por consulta), preservando continuidade entre os lotes.
+function ajustarViagem(pontosViagem) {
+    var TAM_CHUNK = 90;
+    var chunks = [];
+    for (var i = 0; i < pontosViagem.length; i += (TAM_CHUNK - 1)) {
+        var fim = Math.min(i + TAM_CHUNK, pontosViagem.length);
+        chunks.push(pontosViagem.slice(i, fim));
+        if (fim === pontosViagem.length) break;
+    }
+
+    var resultado = [];
+    function passo(idx) {
+        if (idx >= chunks.length) return Promise.resolve(resultado);
+        var chunk = chunks[idx];
+        if (chunk.length < 2) {
+            chunk.forEach(function(p) { resultado.push([p.lat, p.lon]); });
+            return passo(idx + 1);
+        }
+        return osrmMatch(chunk).then(function(coordsSnap) {
+            var ini = (resultado.length > 0) ? 1 : 0; // evita duplicar o ponto de junção entre lotes
+            for (var k = ini; k < coordsSnap.length; k++) resultado.push(coordsSnap[k]);
+        }).catch(function() {
+            // Sem correspondência nesse trecho: cai para a linha reta só ali, sem travar o resto
+            var ini2 = (resultado.length > 0) ? 1 : 0;
+            for (var k2 = ini2; k2 < chunk.length; k2++) resultado.push([chunk[k2].lat, chunk[k2].lon]);
+        }).then(function() { return passo(idx + 1); });
+    }
+    return passo(0).then(function() { return resultado; });
+}
+
+function limparCamadaBruta() { if (camadaRotaBruta) { map.removeLayer(camadaRotaBruta); camadaRotaBruta = null; } }
+function limparCamadasSnap() { camadasSnap.forEach(function(c) { map.removeLayer(c); }); camadasSnap = []; }
+
+function ajustarRotaAsRuas(pontos) {
+    var status = document.getElementById('snapStatus');
+    status.className = 'snap-status';
+
+    if (pontos.length < 2) { status.textContent = ''; return; }
+
+    if (pontos.length > LIMITE_PONTOS_AJUSTE) {
+        status.textContent = 'Trajeto com ' + pontos.length + ' pontos — mantendo conexão direta para preservar o desempenho.';
+        status.className = 'snap-status warn';
+        return;
+    }
+
+    status.textContent = '⏳ Ajustando rota às ruas percorridas...';
+
+    var viagens = dividirEmViagens(pontos);
+    Promise.all(viagens.map(function(v) { return ajustarViagem(v); }))
+        .then(function(resultados) {
+            limparCamadaBruta();
+            limparCamadasSnap();
+            resultados.forEach(function(coordsViagem) {
+                if (coordsViagem.length < 2) return;
+                var linha = L.polyline(coordsViagem, { color:'#2dd4ff', weight:5 }).addTo(map);
+                camadasSnap.push(linha);
             });
-    }, 400);
+            status.textContent = '✓ Rota ajustada às ruas reais (OSRM)';
+            status.className = 'snap-status ok';
+        })
+        .catch(function() {
+            status.textContent = 'Não foi possível ajustar à malha viária agora — exibindo conexão direta entre os pontos.';
+            status.className = 'snap-status warn';
+        });
 }
 
-// EXECUÇÃO DO CONTROLE DESLIZANTE (TIMELINE)
-function navegarLinhaTempo(index) {
-    if (!logsFiltradosGlobais || logsFiltradosGlobais.length === 0) return;
-    var logAtual = logsFiltradosGlobais[index];
-    if (!logAtual) return;
-
-    var novaPos = [logAtual.lat, logAtual.lon];
-    adminMarker.setLatLng(novaPos);
-    
-    document.getElementById('adm-vel').textContent = (logAtual.velocidade || 0) + " km/h";
-    document.getElementById('adm-acc').textContent = (logAtual.acuracia || 0) + " m";
-    var dataFormatada = logAtual.dataISO ? logAtual.dataISO.split('-').reverse().join('/') : "";
-    document.getElementById('adm-time').textContent = dataFormatada + " " + (logAtual.hora || "");
-
-    traduzirCoordenadasParaEnderecoCompleto(logAtual.lat, logAtual.lon, adminMarker, `Passou aqui às ${logAtual.hora}`);
+/* ============================================================
+   Lista de veículos já vistos no banco (atalho de seleção)
+   ============================================================ */
+function carregarVeiculosConhecidos() {
+    db.ref('veiculos').once('value').then(function(snap) {
+        var cont = document.getElementById('chipsVeiculos');
+        cont.innerHTML = '';
+        snap.forEach(function(child) {
+            var chip = document.createElement('span');
+            chip.className = 'veic-chip';
+            chip.textContent = child.key;
+            chip.onclick = function() { document.getElementById('veiculoID').value = child.key; };
+            cont.appendChild(chip);
+        });
+    }).catch(function() {});
 }
 
-// LOCALIZAR POR HORA EXATA PONTUAL
-function localizarMomentoExato() {
-    var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
-    var dataAlvo = document.getElementById('dataPontual').value;
-    var horaAlvo = document.getElementById('horaPontualBusca').value;
-    var resultadoEl = document.getElementById('resultadoPontual');
+function definirPeriodoPadrao() {
+    var hoje = new Date().toISOString().slice(0,10);
+    document.getElementById('dataInicio').value = hoje;
+    document.getElementById('dataFim').value = hoje;
+}
 
-    if (!dataAlvo || !horaAlvo) return;
+/* ============================================================
+   Consulta principal
+   ============================================================ */
+function buscarRotas() {
+    var vID = document.getElementById('veiculoID').value.trim() || 'VEICULO-01';
+    var dIni = document.getElementById('dataInicio').value;
+    var dFim = document.getElementById('dataFim').value || dIni;
+    var hIni = document.getElementById('horaInicio').value || '00:00';
+    var hFim = document.getElementById('horaFim').value || '23:59';
 
-    var btn = document.getElementById('btnLocalizarMomento');
-    btn.disabled = true;
-    btn.textContent = "Buscando...";
+    if (!dIni) { alert('Selecione a data início.'); return; }
 
-    var partesHoraAlvo = horaAlvo.split(':');
-    var dataHoraAlvoObj = new Date(dataAlvo + 'T00:00:00');
-    dataHoraAlvoObj.setHours(Number(partesHoraAlvo[0]), Number(partesHoraAlvo[1]), 0, 0);
-    var tsAlvo = dataHoraAlvoObj.getTime();
+    var tsInicio = new Date(dIni + 'T' + hIni + ':00').getTime();
+    var tsFim = new Date(dFim + 'T' + hFim + ':59').getTime();
 
-    db.ref('veiculos/' + vID + '/historico').limitToLast(2000).once('value').then(function(snapshot) {
-        var pontosDoDia = [];
-        snapshot.forEach(function(child) {
-            var p = normalizarLog(child.val());
-            if (p && p.dataISO === dataAlvo) pontosDoDia.push(p);
-        });
+    document.getElementById('listaPontos').innerHTML = '<div class="hint">Buscando registros...</div>';
+    document.getElementById('statsPanel').style.display = 'none';
+    document.getElementById('btnExportar').disabled = true;
 
-        if (pontosDoDia.length === 0) {
-            resultadoEl.innerHTML = '<p style="color:#ff3333;">Nenhum registro nesta data.</p>';
-            btn.disabled = false; btn.textContent = "Localizar Neste Momento";
-            return;
+    db.ref('veiculos/' + vID + '/historico')
+      .orderByChild('timestamp').startAt(tsInicio).endAt(tsFim)
+      .once('value', function(snap) {
+          var pontos = [];
+          snap.forEach(function(child) { pontos.push(child.val()); });
+          pontos.sort(function(a,b) { return a.timestamp - b.timestamp; });
+          ultimaConsulta = pontos;
+          ultimoVeiculo = vID;
+          renderizarResultados(pontos);
+      }, function(err) {
+          document.getElementById('listaPontos').innerHTML = '<div class="erro">Erro ao consultar o banco: ' + err.message + '</div>';
+      });
+}
+
+function renderizarResultados(pontos) {
+    var lista = document.getElementById('listaPontos');
+    lista.innerHTML = '';
+
+    limparCamadaBruta();
+    limparCamadasSnap();
+    document.getElementById('snapStatus').textContent = '';
+    document.getElementById('snapStatus').className = 'snap-status';
+    marcadores.forEach(function(m) { map.removeLayer(m); });
+    marcadores = [];
+
+    if (pontos.length === 0) {
+        lista.innerHTML = '<div class="erro">Nenhum registro encontrado para este veículo no período selecionado.</div>';
+        document.getElementById('statsPanel').style.display = 'none';
+        document.getElementById('btnExportar').disabled = true;
+        return;
+    }
+
+    /* --- estatísticas --- */
+    var distTotal = 0, velMax = 0, somaVel = 0;
+    for (var i = 0; i < pontos.length; i++) {
+        var v = parseFloat(pontos[i].velocidade) || 0;
+        if (v > velMax) velMax = v;
+        somaVel += v;
+        if (i > 0) distTotal += distanciaMetros(
+            [pontos[i-1].lat, pontos[i-1].lon],
+            [pontos[i].lat, pontos[i].lon]
+        );
+    }
+    var velMedia = (somaVel / pontos.length).toFixed(1);
+    var duracaoMs = pontos[pontos.length-1].timestamp - pontos[0].timestamp;
+
+    document.getElementById('statPontos').textContent = pontos.length;
+    document.getElementById('statDist').textContent = (distTotal/1000).toFixed(2);
+    document.getElementById('statVelMed').textContent = velMedia;
+    document.getElementById('statVelMax').textContent = velMax;
+    document.getElementById('statDuracao').textContent = formatarDuracao(duracaoMs);
+    document.getElementById('statPeriodo').textContent = pontos[0].hora + ' – ' + pontos[pontos.length-1].hora;
+    document.getElementById('statsPanel').style.display = 'block';
+    document.getElementById('btnExportar').disabled = false;
+
+    /* --- rota no mapa: linha reta provisória, ajustada às ruas em seguida --- */
+    var coords = pontos.map(function(p) { return [p.lat, p.lon]; });
+    camadaRotaBruta = L.polyline(coords, { color:'#2dd4ff', weight:5, opacity:.55, dashArray:'2,8' }).addTo(map);
+
+    var marcaInicio = L.circleMarker(coords[0], { radius:8, color:'#00ffa6', weight:2, fillColor:'#00ffa6', fillOpacity:1 })
+        .addTo(map).bindPopup('🟢 Início — ' + pontos[0].hora);
+    var marcaFim = L.circleMarker(coords[coords.length-1], { radius:8, color:'#ff5470', weight:2, fillColor:'#ff5470', fillOpacity:1 })
+        .addTo(map).bindPopup('🔴 Fim — ' + pontos[pontos.length-1].hora);
+    marcadores.push(marcaInicio, marcaFim);
+    map.fitBounds(camadaRotaBruta.getBounds(), { padding:[26,26] });
+
+    ajustarRotaAsRuas(pontos);
+
+    /* --- lista detalhada, agrupada por dia --- */
+    var diaAtual = null;
+    pontos.forEach(function(p) {
+        if (p.dataISO !== diaAtual) {
+            diaAtual = p.dataISO;
+            var sep = document.createElement('div');
+            sep.className = 'dia-separador';
+            sep.textContent = formatarDataBR(diaAtual);
+            lista.appendChild(sep);
         }
+        var endereco = p.endereco
+            ? p.endereco
+            : (p.rua ? (p.rua + ' - ' + p.bairro + ' - ' + p.cidade) : ('Lat ' + p.lat.toFixed(4) + ', Lon ' + p.lon.toFixed(4)));
 
-        rotaDoDiaPolyline.setLatLngs(pontosDoDia.map(p => [p.lat, p.lon]));
-
-        var maisProximo = pontosDoDia[0];
-        var menorDiferenca = Math.abs(maisProximo.tsMs - tsAlvo);
-        pontosDoDia.forEach(p => {
-            var diff = Math.abs(p.tsMs - tsAlvo);
-            if (diff < menorDiferenca) { menorDiferenca = diff; maisProximo = p; }
-        });
-
-        if (!pontoExatoMarker) {
-            pontoExatoMarker = L.marker([maisProximo.lat, maisProximo.lon], { icon: iconeMomentoExato }).addTo(map);
-        } else {
-            pontoExatoMarker.setLatLng([maisProximo.lat, maisProximo.lon]);
-        }
-
-        map.flyTo([maisProximo.lat, maisProximo.lon], 17);
-        var diferencaMin = Math.round(menorDiferenca / 60000);
-        resultadoEl.innerHTML = `<p><strong>Localizado:</strong> às ${maisProximo.hora}<br><span style="font-size:0.8em;color:#888;">Proximidade: ${diferencaMin} min da busca</span></p>`;
-        
-        traduzirCoordenadasParaEnderecoCompleto(maisProximo.lat, maisProximo.lon, pontoExatoMarker, `Encontrado às ${maisProximo.hora}`);
-        btn.disabled = false; btn.textContent = "Localizar Neste Momento";
+        var item = document.createElement('div');
+        item.className = 'hist-item';
+        item.innerHTML = '<span class="hr">' + p.hora + '</span> <span class="vel">— ' + p.velocidade + ' km/h</span>' +
+                          '<span class="addr">📍 ' + endereco + '</span>';
+        item.onclick = function() { map.flyTo([p.lat, p.lon], 17); };
+        lista.appendChild(item);
     });
 }
 
-// BUSCA POR INTERVALO E CARREGAMENTO DA TIMELINE SLIDER
-function aplicarFiltrosEBuscar() {
-    var vID = document.getElementById('veiculoIDAdmin').value || 'VEICULO-01';
-    var dataInicioFiltro = document.getElementById('filtroDataInicio').value;
-    var dataFimFiltro = document.getElementById('filtroDataFim').value;
-    var horaIn = document.getElementById('filtroHoraInicio').value;
-    var horaFim = document.getElementById('filtroHoraFim').value;
-
-    var btn = document.getElementById('btnFiltrar');
-    btn.disabled = true; btn.textContent = "Filtrando...";
-
-    db.ref('veiculos/' + vID + '/historico').limitToLast(1500).once('value').then(function(snapshot) {
-        var pontosFiltrados = [];
-        logsFiltradosGlobais = [];
-
-        snapshot.forEach(function(child) {
-            var log = normalizarLog(child.val());
-            if (!log) return;
-
-            if (dataInicioFiltro && log.dataISO < dataInicioFiltro) return;
-            if (dataFimFiltro && log.dataISO > dataFimFiltro) return;
-            if (log.hora) {
-                var hm = log.hora.substring(0, 5);
-                if (hm < horaIn || hm > horaFim) return;
-            }
-
-            logsFiltradosGlobais.push(log);
-            pontosFiltrados.push([log.lat, log.lon]);
-        });
-
-        document.getElementById('adm-pts').textContent = pontosFiltrados.length;
-
-        if (pontosFiltrados.length > 0) {
-            rotaVerdePolyline.setLatLngs(pontosFiltrados);
-            map.fitBounds(rotaVerdePolyline.getBounds(), { padding: [40, 40] });
-            processarERealinharRotaPelasRuas(pontosFiltrados);
-
-            // Libera e configura a barra de rolagem
-            var slider = document.getElementById('timelineSlider');
-            slider.disabled = false;
-            slider.min = 0;
-            slider.max = logsFiltradosGlobais.length - 1;
-            slider.value = 0;
-
-            document.getElementById('tempoInicioRoteiro').textContent = logsFiltradosGlobais[0].hora.substring(0,5);
-            document.getElementById('tempoFimRoteiro').textContent = logsFiltradosGlobais[logsFiltradosGlobais.length - 1].hora.substring(0,5);
-
-            navegarLinhaTempo(0);
-            document.getElementById('conexaoStatus').textContent = "Pronto";
-        } else {
-            rotaVerdePolyline.setLatLngs([]);
-            document.getElementById('timelineSlider').disabled = true;
-            document.getElementById('addressDetails').innerHTML = `<p style="color:#ff3333;">Nenhum ponto no intervalo.</p>`;
-        }
-        btn.disabled = false; btn.textContent = "Pesquisar e Aplicar Rota";
+/* ============================================================
+   Exportar CSV da última consulta
+   ============================================================ */
+function exportarCSV() {
+    if (!ultimaConsulta.length) return;
+    var linhas = ['data,hora,rua,bairro,cidade,velocidade_kmh,lat,lon'];
+    ultimaConsulta.forEach(function(p) {
+        var rua = (p.rua || '').replace(/,/g,';');
+        var bairro = (p.bairro || '').replace(/,/g,';');
+        var cidade = (p.cidade || '').replace(/,/g,';');
+        linhas.push([p.dataISO, p.hora, rua, bairro, cidade, p.velocidade, p.lat, p.lon].join(','));
     });
+    var blob = new Blob([linhas.join('\n')], { type:'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'rota_' + ultimoVeiculo + '_' + (ultimaConsulta[0].dataISO || 'export') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
-window.onload = function() {
-    initAdminMap();
-    var hoje = new Date().toISOString().slice(0, 10);
-    document.getElementById('filtroDataInicio').value = hoje;
-    document.getElementById('filtroDataFim').value = hoje;
-    document.getElementById('dataPontual').value = hoje;
-    aplicarFiltrosEBuscar();
-};
+carregarVeiculosConhecidos();
+definirPeriodoPadrao();
 </script>
 </body>
 </html>
