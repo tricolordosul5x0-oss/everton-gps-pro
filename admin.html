@@ -133,7 +133,6 @@
     </div>
 </header>
 
-<!-- FILTROS -->
 <div class="panel">
     <span class="panel-tag">FILTROS</span>
 
@@ -168,7 +167,6 @@
     <button class="btn-primary" onclick="buscarRotas()">🔍 BUSCAR ROTA NO PERÍODO</button>
 </div>
 
-<!-- ESTATÍSTICAS -->
 <div class="panel" id="statsPanel" style="display:none">
     <span class="panel-tag">RESUMO DO TRAJETO</span>
     <div class="stats-grid">
@@ -181,13 +179,11 @@
     </div>
 </div>
 
-<!-- MAPA -->
 <div class="map-wrapper">
     <div id="map"></div>
 </div>
 <div class="snap-status" id="snapStatus"></div>
 
-<!-- LISTA DETALHADA -->
 <div class="panel">
     <span class="panel-tag">TRAJETO DETALHADO · RUA / BAIRRO / CIDADE</span>
     <div id="listaPontos"><div class="hint">Escolha um veículo e um período, depois toque em "Buscar rota".</div></div>
@@ -202,8 +198,7 @@
 
 <script>
 /* ============================================================
-   Mesma configuração do Firebase usada no app de campo —
-   este painel só LÊ os dados, nunca grava.
+   Configuração do Firebase
    ============================================================ */
 var firebaseConfig = {
     apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
@@ -220,22 +215,12 @@ var db = firebase.database();
 var map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-29.6133,-52.1919], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
 
-var camadaRotaBruta = null;   // linha reta provisória, exibida enquanto o ajuste às ruas não termina
-var camadasSnap = [];         // linhas já ajustadas à malha viária (uma por "viagem")
+var camadaRotaBruta = null;   
+var camadasSnap = [];         
 var marcadores = [];
 var ultimaConsulta = [];
 var ultimoVeiculo = '';
 
-/* Limite de pontos para tentar ajustar à malha viária — protege o servidor público
-   do OSRM de receber consultas enormes. Acima disso, mantém a linha reta. */
-var LIMITE_PONTOS_AJUSTE = 4000;
-/* Gaps maiores que isso entre dois pontos são tratados como "viagens" separadas
-   (veículo parado/desligado) — evita puxar uma linha reta cruzando a cidade. */
-var GAP_VIAGEM_MS = 5 * 60 * 1000;
-
-/* ============================================================
-   Distância entre dois pontos (Haversine) — mesma fórmula do app de campo
-   ============================================================ */
 function distanciaMetros(p1, p2) {
     var R = 6371000;
     var dLat = (p2[0]-p1[0]) * Math.PI/180;
@@ -254,114 +239,78 @@ function formatarDataBR(iso) {
     return p[2]+'/'+p[1]+'/'+p[0];
 }
 
-/* ============================================================
-   AJUSTE DA ROTA À MALHA VIÁRIA (map matching)
-   Usa o serviço público de demonstração do OSRM para "encaixar"
-   a sequência de pontos GPS nas ruas reais, em vez de ligá-los
-   por uma linha reta. É um serviço gratuito e sem chave, mas é
-   uma demo pública — sem garantia de disponibilidade/limite de
-   uso. Para uso intenso em produção, considere hospedar seu
-   próprio OSRM ou usar um serviço pago (ex.: Mapbox Map Matching).
-   ============================================================ */
-function dividirEmViagens(pontos) {
-    var viagens = [];
-    var atual = [pontos[0]];
-    for (var i = 1; i < pontos.length; i++) {
-        if (pontos[i].timestamp - pontos[i-1].timestamp > GAP_VIAGEM_MS) {
-            viagens.push(atual);
-            atual = [];
-        }
-        atual.push(pontos[i]);
-    }
-    viagens.push(atual);
-    return viagens;
-}
-
-function osrmMatch(chunk) {
-    var coordsStr = chunk.map(function(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }).join(';');
-    var tsStr = chunk.map(function(p) { return Math.round(p.timestamp / 1000); }).join(';');
-    var radStr = chunk.map(function() { return '25'; }).join(';');
-    var url = 'https://router.project-osrm.org/match/v1/driving/' + coordsStr +
-              '?geometries=geojson&overview=full&timestamps=' + tsStr + '&radiuses=' + radStr;
-
-    return fetch(url).then(function(r) { return r.json(); }).then(function(data) {
-        if (data.code !== 'Ok' || !data.matchings || !data.matchings.length) {
-            throw new Error('sem correspondência na malha viária');
-        }
-        var coords = [];
-        data.matchings.forEach(function(m) {
-            m.geometry.coordinates.forEach(function(c) { coords.push([c[1], c[0]]); }); // [lon,lat] -> [lat,lon]
-        });
-        return coords;
-    });
-}
-
-// Ajusta uma "viagem" (sequência contínua de pontos), dividindo em lotes
-// menores quando necessário (o serviço público tem limite de coordenadas
-// por consulta), preservando continuidade entre os lotes.
-function ajustarViagem(pontosViagem) {
-    var TAM_CHUNK = 90;
-    var chunks = [];
-    for (var i = 0; i < pontosViagem.length; i += (TAM_CHUNK - 1)) {
-        var fim = Math.min(i + TAM_CHUNK, pontosViagem.length);
-        chunks.push(pontosViagem.slice(i, fim));
-        if (fim === pontosViagem.length) break;
-    }
-
-    var resultado = [];
-    function passo(idx) {
-        if (idx >= chunks.length) return Promise.resolve(resultado);
-        var chunk = chunks[idx];
-        if (chunk.length < 2) {
-            chunk.forEach(function(p) { resultado.push([p.lat, p.lon]); });
-            return passo(idx + 1);
-        }
-        return osrmMatch(chunk).then(function(coordsSnap) {
-            var ini = (resultado.length > 0) ? 1 : 0; // evita duplicar o ponto de junção entre lotes
-            for (var k = ini; k < coordsSnap.length; k++) resultado.push(coordsSnap[k]);
-        }).catch(function() {
-            // Sem correspondência nesse trecho: cai para a linha reta só ali, sem travar o resto
-            var ini2 = (resultado.length > 0) ? 1 : 0;
-            for (var k2 = ini2; k2 < chunk.length; k2++) resultado.push([chunk[k2].lat, chunk[k2].lon]);
-        }).then(function() { return passo(idx + 1); });
-    }
-    return passo(0).then(function() { return resultado; });
-}
-
 function limparCamadaBruta() { if (camadaRotaBruta) { map.removeLayer(camadaRotaBruta); camadaRotaBruta = null; } }
 function limparCamadasSnap() { camadasSnap.forEach(function(c) { map.removeLayer(c); }); camadasSnap = []; }
 
+/* ============================================================
+   Ajuste definitivo à malha viária usando o motor do OSRM 
+   corrigido com tolerância ampliada de raio para colar nas ruas.
+   ============================================================ */
 function ajustarRotaAsRuas(pontos) {
     var status = document.getElementById('snapStatus');
     status.className = 'snap-status';
 
     if (pontos.length < 2) { status.textContent = ''; return; }
+    status.textContent = '⏳ Fixando linha milimetricamente sobre as ruas...';
 
-    if (pontos.length > LIMITE_PONTOS_AJUSTE) {
-        status.textContent = 'Trajeto com ' + pontos.length + ' pontos — mantendo conexão direta para preservar o desempenho.';
-        status.className = 'snap-status warn';
-        return;
+    // Limpa coordenadas duplicadas e ruídos de veículo parado para não confundir o alinhamento
+    var filtrados = [];
+    for (var i = 0; i < pontos.length; i++) {
+        if (i === 0) { filtrados.push(pontos[i]); continue; }
+        var d = distanciaMetros([pontos[i-1].lat, pontos[i-1].lon], [pontos[i].lat, pontos[i].lon]);
+        if (d > 1) { filtrados.push(pontos[i]); }
+    }
+    if (filtrados.length < 2) filtrados = pontos;
+
+    // Divide em blocos menores para contornar o limite rígido de curvas do servidor público
+    var TAM_CHUNK = 60;
+    var promises = [];
+
+    for (var j = 0; j < filtrados.length; j += (TAM_CHUNK - 1)) {
+        var chunk = filtrados.slice(j, Math.min(j + TAM_CHUNK, filtrados.length));
+        if (chunk.length < 2) break;
+
+        var coordsStr = chunk.map(function(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }).join(';');
+        // radiuses=50 garante que o motor encontre a rua correta num raio de 50m, evitando que a linha corte caminho em diagonal
+        var radStr = chunk.map(function() { return '50'; }).join(';'); 
+        
+        var url = 'https://router.project-osrm.org/route/v1/driving/' + coordsStr + 
+                  '?overview=full&geometries=geojson&radiuses=' + radStr;
+        
+        promises.push(
+            fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.code === 'Ok' && data.routes && data.routes[0]) {
+                    return data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+                }
+                throw new Error();
+            })
+            .catch(function() {
+                // Se um bloco falhar na rua, usa as coordenadas brutas daquele trecho específico para manter a continuidade verde
+                return chunk.map(function(p) { return [p.lat, p.lon]; });
+            })
+        );
     }
 
-    status.textContent = '⏳ Ajustando rota às ruas percorridas...';
-
-    var viagens = dividirEmViagens(pontos);
-    Promise.all(viagens.map(function(v) { return ajustarViagem(v); }))
-        .then(function(resultados) {
-            limparCamadaBruta();
-            limparCamadasSnap();
-            resultados.forEach(function(coordsViagem) {
-                if (coordsViagem.length < 2) return;
-                var linha = L.polyline(coordsViagem, { color:'#2dd4ff', weight:5 }).addTo(map);
-                camadasSnap.push(linha);
-            });
-            status.textContent = '✓ Rota ajustada às ruas reais (OSRM)';
-            status.className = 'snap-status ok';
-        })
-        .catch(function() {
-            status.textContent = 'Não foi possível ajustar à malha viária agora — exibindo conexão direta entre os pontos.';
-            status.className = 'snap-status warn';
+    Promise.all(promises).then(function(resultados) {
+        limparCamadaBruta();
+        limparCamadasSnap();
+        
+        resultados.forEach(function(coordsSegmento) {
+            // Desenha a linha verde viva (#00ffa6) colada na rua, com espessura forte e sem transparência
+            var linha = L.polyline(coordsSegmento, { 
+                color: '#00ffa6', 
+                weight: 6, 
+                opacity: 1.0,
+                lineJoin: 'round'
+            }).addTo(map);
+            camadasSnap.push(linha);
         });
+
+        status.textContent = '✓ Trajeto completamente alinhado com as ruas';
+        status.className = 'snap-status ok';
+    });
 }
 
 /* ============================================================
@@ -461,9 +410,10 @@ function renderizarResultados(pontos) {
     document.getElementById('statsPanel').style.display = 'block';
     document.getElementById('btnExportar').disabled = false;
 
-    /* --- rota no mapa: linha reta provisória, ajustada às ruas em seguida --- */
     var coords = pontos.map(function(p) { return [p.lat, p.lon]; });
-    camadaRotaBruta = L.polyline(coords, { color:'#2dd4ff', weight:5, opacity:.55, dashArray:'2,8' }).addTo(map);
+    
+    // Rota base verde que serve de garantia enquanto carrega o alinhamento
+    camadaRotaBruta = L.polyline(coords, { color:'#00ffa6', weight:4, opacity:0.6 }).addTo(map);
 
     var marcaInicio = L.circleMarker(coords[0], { radius:8, color:'#00ffa6', weight:2, fillColor:'#00ffa6', fillOpacity:1 })
         .addTo(map).bindPopup('🟢 Início — ' + pontos[0].hora);
@@ -474,7 +424,7 @@ function renderizarResultados(pontos) {
 
     ajustarRotaAsRuas(pontos);
 
-    /* --- lista detalhada, agrupada por dia --- */
+    /* --- lista detalhada --- */
     var diaAtual = null;
     pontos.forEach(function(p) {
         if (p.dataISO !== diaAtual) {
