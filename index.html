@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Everton GPS PRO</title>
 
-    <!-- Configurações PWA -->
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0a0d12">
     <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +14,6 @@
     <link rel="apple-touch-icon" href="./icons/icon-192.png">
     <link rel="icon" href="./icons/icon-192.png">
 
-    <!-- Leaflet CSS via CDN -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
 
     <style>
@@ -196,6 +194,21 @@
         #pwaInstallBtn.visible { display:block; }
 
         footer.app-foot { text-align:center; font-size:.65em; color:var(--ink-700); font-family:var(--mono); margin-top:14px; letter-spacing:.4px; }
+
+        /* Estilos da Gestão Multiveículos */
+        .input-group { display: flex; gap: 6px; }
+        .input-group input { flex: 1; }
+        .input-group button { 
+            background: var(--signal-dim); color: var(--signal); border: 1px solid var(--signal);
+            border-radius: var(--radius-md); padding: 0 16px; font-weight: 700; font-family: var(--mono); cursor: pointer;
+        }
+        .chips-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+        .v-chip { 
+            background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; 
+            padding: 4px 8px; font-size: 0.75em; font-family: var(--mono); color: var(--ink-100);
+            display: flex; align-items: center; gap: 6px;
+        }
+        .v-chip .remove-btn { color: var(--danger); cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -212,11 +225,10 @@
         <div class="gps-signal" id="gpsSignal"><span></span><span></span><span></span><span></span></div>
     </div>
 
-    <!-- TELEMETRY STRIP -->
     <div class="telemetry-strip">
         <div class="tchip">
             <span class="tchip-label">Sinal GPS</span>
-            <span class="tchip-value" id="chipSinal">Inicializando</span>
+            <span class="tchip-value" id="chipSinal">Aguardando veículo</span>
         </div>
         <div class="tchip">
             <span class="tchip-label">Última atualização</span>
@@ -242,8 +254,12 @@
     </div>
 
     <div>
-        <span class="field-label">Identificação do veículo</span>
-        <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veículo">
+        <span class="field-label">Cadastrar veículos para rastreio</span>
+        <div class="input-group">
+            <input type="text" id="veiculoID" placeholder="Ex: VEICULO-01, CARRO-02">
+            <button onclick="adicionarVeiculo()">ADICIONAR</button>
+        </div>
+        <div class="chips-container" id="chipsContainer"></div>
     </div>
 
     <div class="external-apps-grid">
@@ -259,7 +275,6 @@
 
     <button id="btnAtualizar" onclick="atualizarLocalizacao()">🛰 FORÇAR ATUALIZAÇÃO AGORA</button>
 
-    <!-- LOCALIZAÇÃO ATUAL: rua / bairro / cidade -->
     <div class="panel">
         <span class="panel-tag">LOCALIZAÇÃO ATUAL</span>
         <div class="loc-row"><span class="loc-key">Rua</span><span class="loc-val" id="locRua">—</span></div>
@@ -288,13 +303,12 @@
         <span class="panel-tag">SISTEMA</span>
         <div style="display:flex; align-items:center;">
             <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">Inicializando GPS...</span>
+            <span id="statusText">Aguardando inserção de veículos...</span>
         </div>
     </div>
 
-    <!-- MANTER TELA ATIVA -->
     <div class="panel wakelock-card">
-        <span class="panel-tag">TELA &amp; RASTREIO EM SEGUNDO PLANO</span>
+        <span class="panel-tag">TELA & RASTREIO EM SEGUNDO PLANO</span>
         <div class="wakelock-toprow">
             <span class="t">Manter tela ativa durante o rastreio</span>
             <label class="switch">
@@ -311,21 +325,28 @@
         </p>
     </div>
 
-    <!-- PAINEL DE HISTÓRICO POR CALENDÁRIO -->
     <div id="historicoPanel">
         <div class="hist-header" onclick="toggleHistorico()">
             <div class="hist-header-left"><span class="ic">🔍</span> Consultar datas passadas</div>
             <span id="histToggleIcon">▾</span>
         </div>
         <div class="hist-body" id="histBody">
-            <div class="hist-filters">
+            <div class="hist-filters" style="flex-direction: column; gap: 10px;">
                 <div>
-                    <span class="field-label">Data início</span>
-                    <input type="date" id="filtroDataInicio">
+                    <span class="field-label">Veículo para consulta</span>
+                    <select id="filtroVeiculoID">
+                        <option value="">Nenhum veículo cadastrado</option>
+                    </select>
                 </div>
-                <div>
-                    <span class="field-label">Data fim</span>
-                    <input type="date" id="filtroDataFim">
+                <div class="hist-filters">
+                    <div>
+                        <span class="field-label">Data início</span>
+                        <input type="date" id="filtroDataInicio">
+                    </div>
+                    <div>
+                        <span class="field-label">Data fim</span>
+                        <input type="date" id="filtroDataFim">
+                    </div>
                 </div>
             </div>
             <button class="btn-buscar" onclick="buscarHistorico()">BUSCAR NO BANCO DE DADOS</button>
@@ -336,7 +357,6 @@
     <footer class="app-foot">EVERTON GPS PRO · RASTREAMENTO VEICULAR</footer>
 </div>
 
-<!-- Scripts Essenciais (Leaflet + Firebase) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
@@ -371,11 +391,75 @@ var totalRegistros = 0;
 var ultimoFixTimestamp = null;
 var wakeLock = null;
 var wakeLockDesejado = false;
+var listaVeiculos = [];
+var watchId = null;
 
 // Inicializar Mapa
 map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 15);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 marcador = L.marker([-29.6133, -52.1919]).addTo(map);
+
+/* =========================================================
+   GERENCIAMENTO DE MULTIPLOS VEÍCULOS
+   ========================================================= */
+function adicionarVeiculo() {
+    var input = document.getElementById('veiculoID');
+    var vID = input.value.trim().toUpperCase();
+    if (!vID) return;
+    if (listaVeiculos.includes(vID)) { alert("Este veículo já está na lista."); return; }
+
+    listaVeiculos.push(vID);
+    input.value = "";
+    atualizarChips();
+    atualizarSeletorFiltro();
+
+    if (listaVeiculos.length === 1) {
+        document.getElementById('statusText').textContent = 'Inicializando GPS...';
+        iniciarGPS();
+    }
+}
+
+function removerVeiculo(vID) {
+    listaVeiculos = listaVeiculos.filter(function(v) { return v !== vID; });
+    atualizarChips();
+    atualizarSeletorFiltro();
+
+    if (listaVeiculos.length === 0 && watchId) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        document.getElementById('statusText').textContent = 'Aguardando inserção de veículos...';
+        document.getElementById('chipSinal').textContent = 'Inativo';
+        document.getElementById('chipSinal').className = 'tchip-value warn';
+        document.getElementById('gpsSignal').classList.remove('active');
+        document.getElementById('statusDot').className = 'status-dot';
+    }
+}
+
+function atualizarChips() {
+    var container = document.getElementById('chipsContainer');
+    container.innerHTML = "";
+    listaVeiculos.forEach(function(vID) {
+        var chip = document.createElement('div');
+        chip.className = 'v-chip';
+        chip.innerHTML = '🚗 ' + vID + ' <span class="remove-btn" onclick="removerVeiculo(\''+vID+'\')">×</span>';
+        container.appendChild(chip);
+    });
+}
+
+function atualizarSeletorFiltro() {
+    var select = document.getElementById('filtroVeiculoID');
+    select.innerHTML = "";
+    if (listaVeiculos.length === 0) {
+        select.innerHTML = '<option value="">Nenhum veículo cadastrado</option>';
+        return;
+    }
+    listaVeiculos.forEach(function(vID) {
+        var op = document.createElement('option');
+        op.value = vID;
+        op.textContent = vID;
+        select.appendChild(op);
+    });
+}
 
 /* =========================================================
    RELÓGIO E TEMPO RELATIVO
@@ -402,12 +486,15 @@ function obterIDB(cb) {
 }
 
 function salvarOffline(dados) {
+    if (listaVeiculos.length === 0) return;
     obterIDB(function(idb) {
         var tx = idb.transaction('fila', 'readwrite');
-        tx.objectStore('fila').add({ vID: document.getElementById('veiculoID').value, dados: dados });
+        var store = tx.objectStore('fila');
+        listaVeiculos.forEach(function(vID) {
+            store.add({ vID: vID, dados: dados });
+        });
         tx.oncomplete = function() {
             atualizarBadgeOffline();
-            // Agenda sincronização em segundo plano (funciona mesmo com o app minimizado, em navegadores compatíveis)
             if (swRegistration && 'sync' in swRegistration) {
                 swRegistration.sync.register('sync-fila-offline').catch(function(){});
             }
@@ -431,7 +518,7 @@ function atualizarBadgeOffline() {
 }
 
 function sincronizarFila() {
-    if (!navigator.onLine) return;
+    if (!navigator.onLine || listaVeiculos.length === 0) return;
     obterIDB(function(idb) {
         var tx = idb.transaction('fila', 'readwrite');
         var store = tx.objectStore('fila');
@@ -468,12 +555,12 @@ function distanciaMetros(p1, p2) {
 
 function precisaGeocodificar(p) {
     if (!ultimoGeocodePos) return true;
-    if (Date.now() - ultimoGeocodeTs > 20000) return true;          // a cada 20s, no máx.
-    if (distanciaMetros(ultimoGeocodePos, p) > 60) return true;      // ou se moveu +60m
+    if (Date.now() - ultimoGeocodeTs > 20000) return true;
+    if (distanciaMetros(ultimoGeocodePos, p) > 60) return true;
     return false;
 }
 
-function atualizarEndereco(lat, lon, dados, vID) {
+function atualizarEndereco(lat, lon, dados) {
     fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1', {
         headers: { 'User-Agent': 'EvertonGPSPRO/1.0' }
     })
@@ -495,13 +582,17 @@ function atualizarEndereco(lat, lon, dados, vID) {
         document.getElementById('locCidade').textContent = cidade;
         document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
 
-        db.ref('veiculos/' + vID + '/atual').set(dados);
-        db.ref('veiculos/' + vID + '/historico').push(dados);
+        listaVeiculos.forEach(function(vID) {
+            db.ref('veiculos/' + vID + '/atual').set(dados);
+            db.ref('veiculos/' + vID + '/historico').push(dados);
+        });
     })
     .catch(function() {
         dados.endereco = 'Lat: ' + lat.toFixed(4) + ', Lon: ' + lon.toFixed(4);
-        db.ref('veiculos/' + vID + '/atual').set(dados);
-        db.ref('veiculos/' + vID + '/historico').push(dados);
+        listaVeiculos.forEach(function(vID) {
+            db.ref('veiculos/' + vID + '/atual').set(dados);
+            db.ref('veiculos/' + vID + '/historico').push(dados);
+        });
     });
 }
 
@@ -509,6 +600,7 @@ function atualizarEndereco(lat, lon, dados, vID) {
    PROCESSAR POSIÇÃO CAPTURADA
    ========================================================= */
 function processarPosicao(pos) {
+    if (listaVeiculos.length === 0) return;
     var lat = pos.coords.latitude;
     var lon = pos.coords.longitude;
     var vel = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0;
@@ -522,10 +614,8 @@ function processarPosicao(pos) {
         dataISO: agora.toISOString().slice(0,10)
     };
 
-    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
     ultimoFixTimestamp = agora.getTime();
 
-    // Atualização visual no mapa
     var p = [lat, lon];
     historicoRota.push(p);
     marcador.setLatLng(p);
@@ -533,13 +623,11 @@ function processarPosicao(pos) {
     else { linhaRota.setLatLngs(historicoRota); }
     map.flyTo(p, 16);
 
-    // Botões de navegação externa
     document.getElementById('btnExtMaps').href = 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon;
     document.getElementById('btnExtWaze').href = 'waze://?ll=' + lat + ',' + lon + '&navigate=yes';
     document.getElementById('btnExtMaps').style.display = 'inline-flex';
     document.getElementById('btnExtWaze').style.display = 'inline-flex';
 
-    // Métricas e horário
     totalRegistros++;
     document.getElementById('metricsGrid').style.display = 'flex';
     document.getElementById('mv-vel').textContent = vel;
@@ -547,10 +635,9 @@ function processarPosicao(pos) {
     document.getElementById('locHora').textContent = dados.hora;
     document.getElementById('locData').textContent = agora.toLocaleDateString('pt-BR');
 
-    // Status "ao vivo"
     document.getElementById('statusDot').className = 'status-dot active';
     document.getElementById('gpsSignal').classList.add('active');
-    document.getElementById('chipSinal').textContent = 'Ativo';
+    document.getElementById('chipSinal').textContent = 'Ativo (' + listaVeiculos.length + ')';
     document.getElementById('chipSinal').className = 'tchip-value on';
 
     if (navigator.onLine) {
@@ -558,16 +645,18 @@ function processarPosicao(pos) {
         if (precisaGeocodificar(p)) {
             ultimoGeocodeTs = Date.now();
             ultimoGeocodePos = p;
-            atualizarEndereco(lat, lon, dados, vID);
+            atualizarEndereco(lat, lon, dados);
         } else {
-            // Reaproveita o último endereço conhecido, só atualiza posição/velocidade/horário no banco
             dados.rua = document.getElementById('locRua').textContent;
             dados.bairro = document.getElementById('locBairro').textContent;
             dados.cidade = document.getElementById('locCidade').textContent;
             dados.endereco = dados.rua + ' - ' + dados.bairro + ' - ' + dados.cidade;
             document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
-            db.ref('veiculos/' + vID + '/atual').set(dados);
-            db.ref('veiculos/' + vID + '/historico').push(dados);
+            
+            listaVeiculos.forEach(function(vID) {
+                db.ref('veiculos/' + vID + '/atual').set(dados);
+                db.ref('veiculos/' + vID + '/historico').push(dados);
+            });
         }
     } else {
         dados.endereco = 'Capturado offline (sem endereço)';
@@ -577,6 +666,7 @@ function processarPosicao(pos) {
 }
 
 function erroPosicao(err) {
+    if (listaVeiculos.length === 0) return;
     document.getElementById('chipSinal').textContent = 'Sem sinal';
     document.getElementById('chipSinal').className = 'tchip-value warn';
     document.getElementById('gpsSignal').classList.remove('active');
@@ -587,15 +677,15 @@ function erroPosicao(err) {
 /* =========================================================
    CAPTURA CONTÍNUA
    ========================================================= */
-var watchId = null;
 function iniciarGPS() {
-    if (navigator.geolocation) {
+    if (navigator.geolocation && listaVeiculos.length > 0 && !watchId) {
         watchId = navigator.geolocation.watchPosition(processarPosicao, erroPosicao, {
             enableHighAccuracy: true, maximumAge: 0, timeout: 30000
         });
     }
 }
 function atualizarLocalizacao() {
+    if (listaVeiculos.length === 0) { alert("Adicione pelo menos um veículo."); return; }
     navigator.geolocation.getCurrentPosition(processarPosicao, erroPosicao, {enableHighAccuracy:true});
 }
 
@@ -603,20 +693,17 @@ function centralizarMapa() { if (historicoRota.length > 0) map.flyTo(historicoRo
 function limparRota() { historicoRota = []; if (linhaRota) map.removeLayer(linhaRota); linhaRota = null; }
 
 /* =========================================================
-   RETOMADA AO VOLTAR PARA O APP (a tela apagada suspende a
-   captura — ao reabrir, força uma nova leitura imediatamente)
+   RETOMADA AO VOLTAR PARA O APP
    ========================================================= */
 document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible') {
+    if (document.visibilityState === 'visible' && listaVeiculos.length > 0) {
         if (wakeLockDesejado) solicitarWakeLock();
         atualizarLocalizacao();
     }
 });
 
 /* =========================================================
-   WAKE LOCK — mantém a tela ligada durante o rastreio
-   (os navegadores não permitem capturar GPS com a tela apagada;
-   esta é a forma compatível de garantir captura contínua)
+   WAKE LOCK
    ========================================================= */
 function solicitarWakeLock() {
     if (!('wakeLock' in navigator)) {
@@ -627,9 +714,7 @@ function solicitarWakeLock() {
     }
     navigator.wakeLock.request('screen').then(function(lock) {
         wakeLock = lock;
-        wakeLock.addEventListener('release', function() {
-            wakeLock = null;
-        });
+        wakeLock.addEventListener('release', function() { wakeLock = null; });
     }).catch(function() {
         document.getElementById('wakeLockToggle').checked = false;
         wakeLockDesejado = false;
@@ -656,9 +741,11 @@ function toggleHistorico() {
 }
 
 function buscarHistorico() {
+    var vID = document.getElementById('filtroVeiculoID').value;
+    if (!vID) { alert("Selecione um veículo cadastrado para consultar."); return; }
+    
     var inicio = document.getElementById('filtroDataInicio').value;
     var fim = document.getElementById('filtroDataFim').value || inicio;
-    var vID = document.getElementById('veiculoID').value || 'VEICULO-01';
     var painel = document.getElementById('histResultados');
 
     painel.innerHTML = '<div style="color:#666; padding:10px;">Buscando registros...</div>';
@@ -704,7 +791,6 @@ function instalarPWA() {
     if (defPrompt) { defPrompt.prompt(); defPrompt = null; document.getElementById('pwaInstallBtn').classList.remove('visible'); }
 }
 
-iniciarGPS();
 atualizarBadgeOffline();
 </script>
 </body>
