@@ -26,59 +26,67 @@
             background-color: var(--bg-void);
             color: var(--ink-100);
             display: flex; height: 100vh;
+            overflow: hidden;
         }
+        
+        /* TELA DE LOGIN (SOBREPOSTA) */
+        #loginOverlay {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--bg-void); z-index: 9999;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .login-box {
+            background: var(--bg-panel); border: 1px solid var(--border);
+            padding: 32px; border-radius: 12px; width: 100%; max-width: 360px;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        }
+        .login-box h2 { margin: 0 0 8px 0; color: var(--signal); }
+        .login-box p { margin: 0 0 24px 0; color: var(--ink-500); font-size: 0.85em; }
+        .input-group { margin-bottom: 16px; }
+        .input-group label { display: block; font-size: 0.8em; color: var(--ink-500); margin-bottom: 6px; }
+        .input-group input {
+            width: 100%; background: var(--bg-raised); border: 1px solid var(--border);
+            padding: 10px; border-radius: 6px; color: white; box-sizing: border-box;
+        }
+        .input-group input:focus { border-color: var(--telemetry); outline: none; }
+        .btn-login {
+            width: 100%; background: var(--signal); color: var(--bg-void); font-weight: bold;
+            border: none; padding: 12px; border-radius: 6px; cursor: pointer; transition: 0.2s;
+        }
+        .btn-login:hover { opacity: 0.9; }
+        #loginErro { color: var(--danger); font-size: 0.8em; margin-top: 10px; text-align: center; }
+
+        /* INTERFACE DO MAPA (SÓ APARECE APÓS LOGAR) */
+        #appContainer { display: none; width: 100%; height: 100%; }
         
         #sidebar {
-            width: 340px; background: var(--bg-panel);
-            border-right: 1px solid var(--border);
-            display: flex; flex-direction: column; z-index: 10;
-            flex-shrink: 0;
+            width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 10; flex-shrink: 0;
         }
-        .sidebar-header {
-            padding: 16px; background: var(--bg-raised);
-            border-bottom: 1px solid var(--border);
-        }
+        .sidebar-header { padding: 16px; background: var(--bg-raised); border-bottom: 1px solid var(--border); position: relative; }
         .sidebar-header h2 { margin: 0; font-size: 1.2em; color: var(--signal); }
         .sidebar-header span { font-size: 0.75em; color: var(--ink-500); font-family: var(--mono); }
+        .btn-logout { position: absolute; right: 16px; top: 18px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8em; }
         
         #listaVeiculos { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
-        .card-veiculo {
-            background: var(--bg-raised); border: 1px solid var(--border);
-            border-radius: 8px; padding: 12px; cursor: pointer; transition: 0.2s;
-        }
-        .card-veiculo:hover { border-color: var(--telemetry); }
+        .card-veiculo { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; }
         .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 0.95em; }
-        
         .card-status { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,166,0.1); color: var(--signal); font-weight: bold; }
         .card-status.parado { background: rgba(255,84,112,0.1); color: var(--danger); }
-        
         .card-body { font-size: 0.78em; color: var(--ink-500); margin-top: 6px; line-height: 1.4; }
-        .card-body b { color: var(--ink-100); }
-
-        /* Container de paradas dentro do card */
-        .stops-timeline {
-            margin-top: 10px; padding-top: 8px;
-            border-top: 1px dashed var(--border);
-        }
-        .stops-title { font-size: 0.72em; color: var(--amber); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;}
-        .stop-item { font-size: 0.72em; color: var(--ink-200); padding: 3px 0; display: flex; flex-direction: column; gap: 1px; }
-        .stop-item i { color: var(--ink-500); font-style: normal; font-family: var(--mono); }
+        
+        .stops-timeline { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
+        .stops-title { font-size: 0.72em; color: var(--amber); font-weight: bold; margin-bottom: 4px; display: block; }
+        .stop-item { font-size: 0.72em; color: var(--ink-100); padding: 3px 0; }
 
         #map { flex: 1; height: 100%; background: var(--bg-void); }
 
-        /* Pins Customizados */
-        .pin-parado {
-            background-color: var(--danger); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(255,84,112,0.6);
-        }
-        .pin-movimento {
-            background-color: var(--signal); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0,255,166,0.6);
-        }
-        .pin-historico-parada {
-            background-color: var(--amber); border: 1.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; color: black;
-        }
+        .pin-parado { background-color: var(--danger); border: 2px solid white; border-radius: 50%; }
+        .pin-movimento { background-color: var(--signal); border: 2px solid white; border-radius: 50%; }
+        .pin-historico-parada { background-color: var(--amber); border: 1.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; }
 
         @media (max-width: 768px) {
-            body { flex-direction: column; }
+            #appContainer { flex-direction: column; }
             #sidebar { width: 100%; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }
             #map { width: 100%; height: 55vh; }
         }
@@ -86,23 +94,42 @@
 </head>
 <body>
 
-<div id="sidebar">
-    <div class="sidebar-header">
-        <h2>Everton GPS Admin</h2>
-        <span id="contadorFrota">Monitorando: 0 veículos</span>
-    </div>
-    <div id="listaVeiculos">
+<div id="loginOverlay">
+    <div class="login-box">
+        <h2>Everton GPS</h2>
+        <p>Painel de Monitoramento de Frota</p>
+        <div class="input-group">
+            <label>E-mail Corporativo</label>
+            <input type="email" id="emailInput" placeholder="seu@email.com">
         </div>
+        <div class="input-group">
+            <label>Senha de Acesso</label>
+            <input type="password" id="senhaInput" placeholder="******">
+        </div>
+        <button class="btn-login" onclick="executarLogin()">Entrar no Painel</button>
+        <div id="loginErro"></div>
+    </div>
 </div>
 
-<div id="map"></div>
+<div id="appContainer">
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h2>Everton GPS Admin</h2>
+            <span id="contadorFrota">Carregando frota...</span>
+            <button class="btn-logout" onclick="executarLogout()">Sair</button>
+        </div>
+        <div id="listaVeiculos"></div>
+    </div>
+    <div id="map"></div>
+</div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// Configuração do Firebase
+// Configuração do seu Firebase
 var firebaseConfig = {
     apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
     authDomain: "everton-gps.firebaseapp.com",
@@ -114,179 +141,165 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
+var auth = firebase.auth();
 
 var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
 var marcadoresAtivos = {};
 var linhasTrajeto = {};
-var marcadoresParadas = {}; // Guarda os pins fixos de parada no mapa
+var marcadoresParadas = {}; 
 var ultimosPontosContados = {}; 
-
-var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7', '#3b82f6'];
+var coresAtribuidas = {};
+var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7'];
 var indiceCor = 0;
+var firebaseListener = null; // Guarda o listener ativo para limpar no logout
 
 function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length]; }
-var coresAtribuidas = {};
 
 /* =========================================================
-   SNAP TO ROADS (ROTEAMENTO PREFEITO NAS RUAS)
+   CONTROLE DE ACESSO (AUTHENTICATION)
+   ========================================================= */
+auth.onAuthStateChanged(function(user) {
+    if (user) {
+        // Usuário logado com sucesso!
+        document.getElementById('loginOverlay').style.display = 'none';
+        document.getElementById('appContainer').style.display = 'flex';
+        map.invalidateSize(); // Força o Leaflet a renderizar o tamanho correto
+        
+        // Identifica a empresa usando o e-mail (ex: "cliente@teste.com" vira ID "cliente_teste_com")
+        var empresaIdLimpo = user.email.replace(/[^a-zA-Z0-9]/g, "_");
+        
+        // Inicia o monitoramento filtrando APENAS os veículos dessa empresa
+        inicializarMonitoramento(empresaIdLimpo);
+    } else {
+        // Usuário deslogado
+        document.getElementById('loginOverlay').style.display = 'flex';
+        document.getElementById('appContainer').style.display = 'none';
+        if (firebaseListener) firebaseListener.off(); // Desliga leituras anteriores
+        limparMapaCompleto();
+    }
+});
+
+function executarLogin() {
+    var email = document.getElementById('emailInput').value;
+    var senha = document.getElementById('senhaInput').value;
+    var erroDiv = document.getElementById('loginErro');
+    erroDiv.textContent = "";
+
+    auth.signInWithEmailAndPassword(email, senha).catch(function(error) {
+        erroDiv.textContent = "Acesso negado: Usuário ou senha inválidos.";
+    });
+}
+
+function executarLogout() {
+    auth.signOut();
+}
+
+function limparMapaCompleto() {
+    Object.keys(marcadoresAtivos).forEach(id => map.removeLayer(marcadoresAtivos[id]));
+    Object.keys(linhasTrajeto).forEach(id => map.removeLayer(linhasTrajeto[id]));
+    Object.keys(marcadoresParadas).forEach(id => marcadoresParadas[id].forEach(m => map.removeLayer(m)));
+    marcadoresAtivos = {}; linhasTrajeto = {}; marcadoresParadas = {}; ultimosPontosContados = {};
+}
+
+/* =========================================================
+   SNAKE TO ROADS & MONITORAMENTO REALTIME INTEGRADO
    ========================================================= */
 function desenharRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
     if (coordenadasBrutas.length < 2) return;
-    var pontosOtimizados = coordenadasBrutas.slice(-50);
-    var stringCoordenadas = pontosOtimizados.map(function(p) { return p[1] + ',' + p[0]; }).join(';');
+    var stringCoordenadas = coordenadasBrutas.slice(-50).map(p => p[1] + ',' + p[0]).join(';');
     var url = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
 
-    fetch(url).then(function(res) { return res.json(); }).then(function(data) {
-        if (data.code === 'Ok' && data.routes && data.routes[0]) {
-            var coordenadasRuas = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-            if (linhasTrajeto[vID]) {
-                linhasTrajeto[vID].setLatLngs(coordenadasRuas);
-            } else {
-                linhasTrajeto[vID] = L.polyline(coordenadasRuas, { color: cor, weight: 5, opacity: 0.85 }).addTo(map);
-            }
-        } else {
-            desenharLinhaDireta(vID, coordenadasBrutas, cor);
+    fetch(url).then(res => res.json()).then(data => {
+        if (data.code === 'Ok' && data.routes[0]) {
+            var coordenadasRuas = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            if (linhasTrajeto[vID]) { linhasTrajeto[vID].setLatLngs(coordenadasRuas); } 
+            else { linhasTrajeto[vID] = L.polyline(coordenadasRuas, { color: cor, weight: 5, opacity: 0.85 }).addTo(map); }
         }
-    }).catch(function() { desenharLinhaDireta(vID, coordenadasBrutas, cor); });
+    }).catch(() => {});
 }
 
-function desenharLinhaDireta(vID, coordenadas, cor) {
-    if (linhasTrajeto[vID]) { linhasTrajeto[vID].setLatLngs(coordenadas); }
-    else { linhasTrajeto[vID] = L.polyline(coordenadas, { color: cor, weight: 4, opacity: 0.7 }).addTo(map); }
-}
-
-/* =========================================================
-   MONITORAMENTO EM TEMPO REAL + DETECÇÃO COMPLETA DE PARADAS
-   ========================================================= */
-db.ref('veiculos').on('value', function(snapshot) {
-    var veiculos = snapshot.val();
-    var listaContainer = document.getElementById('listaVeiculos');
+function inicializarMonitoramento(empresaIdCliente) {
+    var refVeiculos = db.ref('veiculos');
     
-    if (!veiculos) {
-        listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px;">Nenhum veículo ativo.</div>';
-        document.getElementById('contadorFrota').textContent = "Monitorando: 0 veículos";
-        return;
-    }
+    // FILTRO COMERCIAL CRUCIAL: Filtra a busca do banco pelo campo "empresaId" do veículo igual ao ID do cliente logado
+    firebaseListener = refVeiculos.orderByChild('atual/empresaId').equalTo(empresaIdCliente);
+    
+    firebaseListener.on('value', function(snapshot) {
+        var veiculos = snapshot.val();
+        var listaContainer = document.getElementById('listaVeiculos');
+        listaContainer.innerHTML = "";
 
-    document.getElementById('contadorFrota').textContent = "Monitorando: " + Object.keys(veiculos).length + " veículo(s)";
-    listaContainer.innerHTML = "";
-
-    // Inicializa contêiner de marcadores de paradas para este ciclo se não existir
-    Object.keys(veiculos).forEach(function(vID) {
-        var dadosAtual = veiculos[vID].atual;
-        if (!dadosAtual) return;
-
-        var lat = dadosAtual.lat;
-        var lon = dadosAtual.lon;
-        var vel = parseFloat(dadosAtual.velocidade || 0);
-        var enderecoCompleto = dadosAtual.endereco || "Buscando endereço...";
-        var hora = dadosAtual.hora || "--:--";
-
-        var estaParado = vel <= 2; 
-        var statusTexto = estaParado ? "🛑 PARADO" : "⚡ EM MOVIMENTO";
-        var classeStatus = estaParado ? "card-status parado" : "card-status";
-        
-        var iconClass = estaParado ? 'pin-parado' : 'pin-movimento';
-        var customIcon = L.divIcon({ className: iconClass, iconSize: [16, 16], iconAnchor: [8, 8] });
-
-        // 1. MARCADOR ATUAL
-        if (marcadoresAtivos[vID]) {
-            marcadoresAtivos[vID].setLatLng([lat, lon]);
-            marcadoresAtivos[vID].setIcon(customIcon);
-            marcadoresAtivos[vID].getPopup().setContent('<b>' + vID + '</b><br>' + statusTexto + '<br>Velocidade: ' + vel + ' km/h');
-        } else {
-            marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map)
-                .bindPopup('<b>' + vID + '</b><br>' + statusTexto + '<br>Velocidade: ' + vel + ' km/h');
+        if (!veiculos) {
+            document.getElementById('contadorFrota').textContent = "Frota: 0 veículos";
+            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em;">Nenhum veículo vinculado à sua conta.</div>';
+            return;
         }
 
-        if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
+        document.getElementById('contadorFrota').textContent = "Frota: " + Object.keys(veiculos).length + " veículo(s)";
 
-        // 2. FILTRAR PARADAS NO HISTÓRICO & PLOTAR MARCADORES (🛑)
-        var htmlParadasTimeline = "";
-        if (!marcadoresParadas[vID]) marcadoresParadas[vID] = [];
+        Object.keys(veiculos).forEach(function(vID) {
+            var dadosAtual = veiculos[vID].atual;
+            var lat = dadosAtual.lat;
+            var lon = dadosAtual.lon;
+            var vel = parseFloat(dadosAtual.velocidade || 0);
+            var hora = dadosAtual.hora || "--:--";
 
-        if (veiculos[vID].historico) {
-            var pontosBrutos = [];
-            var dadosHistorico = veiculos[vID].historico;
-            var paradasEncontradas = [];
+            var estaParado = vel <= 2;
+            var iconClass = estaParado ? 'pin-parado' : 'pin-movimento';
+            var customIcon = L.divIcon({ className: iconClass, iconSize: [16, 16], iconAnchor: [8, 8] });
 
-            Object.keys(dadosHistorico).forEach(function(chave) {
-                var p = dadosHistorico[chave];
-                if (p.lat && p.lon) {
-                    pontosBrutos.push([p.lat, p.lon]);
-                    
-                    // Identifica se o ponto registrado no histórico era uma parada clara (Velocidade = 0)
-                    if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
-                        // Evita duplicar paradas seguidas na mesma rua no mesmo minuto
-                        var ultimaParada = paradasEncontradas[paradasEncontradas.length - 1];
-                        if (!ultimaParada || ultimaParada.rua !== p.rua || ultimaParada.hora.slice(0,5) !== p.hora.slice(0,5)) {
-                            paradasEncontradas.push(p);
-                        }
-                    }
-                }
-            });
-
-            // Limpa pins de paradas antigas do mapa para este veículo antes de redesenhar
-            marcadoresParadas[vID].forEach(function(m) { map.removeLayer(m); });
-            marcadoresParadas[vID] = [];
-
-            // Desenha os novos pins de parada encontrados
-            paradasEncontradas.slice(-4).forEach(function(pStop) {
-                var iconStop = L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18], iconAnchor: [9, 9] });
-                var mStop = L.marker([pStop.lat, pStop.lon], { icon: iconStop }).addTo(map)
-                    .bindPopup(`<b>🛑 Parada de ${vID}</b><br><b>Hora:</b> ${pStop.hora}<br><b>Local:</b> ${pStop.endereco}`);
-                
-                marcadoresParadas[vID].push(mStop);
-
-                // Monta o texto que vai para a barra lateral do admin
-                htmlParadasTimeline += `
-                    <div class="stop-item" onclick="event.stopPropagation(); map.flyTo([${pStop.lat}, ${pStop.lon}], 18);">
-                        <i>⏱️ ${pStop.hora}</i>
-                        <span>📍 ${pStop.rua ? pStop.rua : 'Via principal'} - ${pStop.bairro}, ${pStop.cidade}</span>
-                    </div>
-                `;
-            });
-
-            // Desenha a linha sobreposta à malha de ruas
-            if (ultimosPontosContados[vID] !== pontosBrutos.length) {
-                ultimosPontosContados[vID] = pontosBrutos.length;
-                desenharRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
+            if (marcadoresAtivos[vID]) {
+                marcadoresAtivos[vID].setLatLng([lat, lon]).setIcon(customIcon);
+            } else {
+                marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map).bindPopup(`<b>${vID}</b>`);
             }
-        }
 
-        // 3. RENDERIZAR CARD COMPLETO NA BARRA LATERAL
-        var card = document.createElement('div');
-        card.className = 'card-veiculo';
-        card.style.borderLeft = "5px solid " + coresAtribuidas[vID];
+            if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
 
-        card.innerHTML = `
-            <div class="card-title">
-                <span>🚗 ${vID}</span>
-                <span class="${classeStatus}">${statusTexto}</span>
-            </div>
-            <div class="card-body">
-                <b>Velocidade:</b> ${vel} km/h<br>
-                <b>Último Sinal:</b> ${hora}<br>
-                <b>Posição Atual:</b> ${enderecoCompleto}
-            </div>
-            ${htmlParadasTimeline ? `
-                <div class="stops-timeline">
-                    <span class="stops-title">📍 Últimas Paradas Registradas:</span>
-                    ${htmlParadasTimeline}
-                </div>
-            ` : ''}
-        `;
-        
-        card.onclick = function() {
-            map.flyTo([lat, lon], 17);
-            marcadoresAtivos[vID].openPopup();
-        };
+            var htmlParadasTimeline = "";
+            if (!marcadoresParadas[vID]) marcadoresParadas[vID] = [];
 
-        listaContainer.appendChild(card);
+            if (veiculos[vID].historico) {
+                var pontosBrutos = [];
+                var paradasEncontradas = [];
+                Object.keys(veiculos[vID].historico).forEach(ch => {
+                    var p = veiculos[vID].historico[ch];
+                    pontosBrutos.push([p.lat, p.lon]);
+                    if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
+                        paradasEncontradas.push(p);
+                    }
+                });
+
+                marcadoresParadas[vID].forEach(m => map.removeLayer(m));
+                marcadoresParadas[vID] = [];
+
+                paradasEncontradas.slice(-3).forEach(pStop => {
+                    var mStop = L.marker([pStop.lat, pStop.lon], { icon: L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18] }) }).addTo(map);
+                    marcadoresParadas[vID].push(mStop);
+                    htmlParadasTimeline += `<div class="stop-item">⏱️ ${pStop.hora} - 📍 ${pStop.rua}, ${pStop.bairro}</div>`;
+                });
+
+                if (ultimosPontosContados[vID] !== pontosBrutos.length) {
+                    ultimosPontosContados[vID] = pontosBrutos.length;
+                    desenharRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
+                }
+            }
+
+            var card = document.createElement('div');
+            card.className = 'card-veiculo';
+            card.style.borderLeft = "5px solid " + coresAtribuidas[vID];
+            card.innerHTML = `
+                <div class="card-title"><span>🚗 ${vID}</span><span class="card-status ${estaParado?'parado':''}">${estaParado?'PARADO':'MOVIMENTO'}</span></div>
+                <div class="card-body"><b>Velocidade:</b> ${vel} km/h | <b>Sinal:</b> ${hora}<br><b>Local:</b> ${dadosAtual.endereco || 'Rua pública'}</div>
+                ${htmlParadasTimeline ? `<div class="stops-timeline"><span class="stops-title">📍 Paradas:</span>${htmlParadasTimeline}</div>` : ''}
+            `;
+            card.onclick = () => { map.flyTo([lat, lon], 17); marcadoresAtivos[vID].openPopup(); };
+            listaContainer.appendChild(card);
+        });
     });
-});
+}
 </script>
 </body>
 </html>
