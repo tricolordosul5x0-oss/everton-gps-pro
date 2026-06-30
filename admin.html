@@ -94,6 +94,7 @@
 </head>
 <body>
 
+<!-- TELA DE LOGIN OBRIGATÓRIA -->
 <div id="loginOverlay">
     <div class="login-box">
         <h2>Everton GPS</h2>
@@ -106,39 +107,45 @@
             <label>Senha de Acesso</label>
             <input type="password" id="senhaInput" placeholder="******">
         </div>
-        <button class="btn-login" onclick="executarLogin()">Entrar no Painel</button>
+        <!-- Vinculado via ID para escuta direta e evitar falhas de clique -->
+        <button class="btn-login" id="btnEntrar">Entrar no Painel</button>
         <div id="loginErro"></div>
     </div>
 </div>
 
+<!-- CONTAINER PRINCIPAL DO MAPA -->
 <div id="appContainer">
     <div id="sidebar">
         <div class="sidebar-header">
             <h2>Everton GPS Admin</h2>
             <span id="contadorFrota">Carregando frota...</span>
-            <button class="btn-logout" onclick="executarLogout()">Sair</button>
+            <button class="btn-logout" id="btnSair">Sair</button>
         </div>
         <div id="listaVeiculos"></div>
     </div>
     <div id="map"></div>
 </div>
 
+<!-- Scripts -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// Configuração Oficial do seu Firebase
+// Configuração Corrigida com base no seu print 39396.jpg
 var firebaseConfig = {
-    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFV_xyAsFsKo2eXzY",
     authDomain: "everton-gps.firebaseapp.com",
     databaseURL: "https://everton-gps-default-rtdb.firebaseio.com",
     projectId: "everton-gps",
-    storageBucket: "everton-gps.appspot.com",
+    storageBucket: "everton-gps.firebasestorage.app",
     messagingSenderId: "688936933095",
-    appId: "1:688936933095:web:5508a8e1008f1b4020a1db"
+    appId: "1:688936933095:web:790b2407334e8b148e3442",
+    measurementId: "G-X14EWTZNRD"
 };
+
+// Inicialização
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 var auth = firebase.auth();
@@ -166,9 +173,7 @@ auth.onAuthStateChanged(function(user) {
         document.getElementById('appContainer').style.display = 'flex';
         map.invalidateSize();
         
-        // Limpa o e-mail criando o identificador único para o filtro do banco
         var empresaIdLimpo = user.email.replace(/[^a-zA-Z0-9]/g, "_");
-        
         inicializarMonitoramento(empresaIdLimpo);
     } else {
         document.getElementById('loginOverlay').style.display = 'flex';
@@ -178,7 +183,8 @@ auth.onAuthStateChanged(function(user) {
     }
 });
 
-function executarLogin() {
+// Captura do evento de clique de forma direta e blindada
+document.getElementById('btnEntrar').addEventListener('click', function() {
     var email = document.getElementById('emailInput').value.trim();
     var senha = document.getElementById('senhaInput').value;
     var erroDiv = document.getElementById('loginErro');
@@ -189,9 +195,14 @@ function executarLogin() {
         return;
     }
 
+    // Alerta de depuração para verificar se o clique respondeu no Acode
+    erroDiv.style.color = "var(--telemetry)";
+    erroDiv.textContent = "Conectando ao Firebase...";
+
     auth.signInWithEmailAndPassword(email, senha).catch(function(error) {
         console.error(error);
-        // Alertas detalhados para te ajudar no teste do Acode
+        erroDiv.style.color = "var(--danger)";
+        
         if (error.code === "auth/wrong-password") {
             erroDiv.textContent = "Senha incorreta para este usuário.";
         } else if (error.code === "auth/user-not-found") {
@@ -199,14 +210,14 @@ function executarLogin() {
         } else if (error.code === "auth/invalid-email") {
             erroDiv.textContent = "Formato de e-mail inválido.";
         } else {
-            erroDiv.textContent = "Erro no login: " + error.message;
+            erroDiv.textContent = "Erro: " + error.message;
         }
     });
-}
+});
 
-function executarLogout() {
+document.getElementById('btnSair').addEventListener('click', function() {
     auth.signOut();
-}
+});
 
 function limparMapaCompleto() {
     Object.keys(marcadoresAtivos).forEach(id => map.removeLayer(marcadoresAtivos[id]));
@@ -218,7 +229,7 @@ function limparMapaCompleto() {
 /* =========================================================
    SNAKE TO ROADS & MONITORAMENTO REALTIME INTEGRADO
    ========================================================= */
-function desenharRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
+function desenhoRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
     if (coordenadasBrutas.length < 2) return;
     var stringCoordenadas = coordenadasBrutas.slice(-50).map(p => p[1] + ',' + p[0]).join(';');
     var url = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
@@ -235,7 +246,6 @@ function desenharRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
 function inicializarMonitoramento(empresaIdCliente) {
     var refVeiculos = db.ref('veiculos');
     
-    // FILTRO COMERCIAL: Busca apenas nós cujo "atual/empresaId" seja igual ao ID gerado pelo login
     firebaseListener = refVeiculos.orderByChild('atual/empresaId').equalTo(empresaIdCliente);
     
     firebaseListener.on('value', function(snapshot) {
@@ -245,7 +255,7 @@ function inicializarMonitoramento(empresaIdCliente) {
 
         if (!veiculos) {
             document.getElementById('contadorFrota').textContent = "Frota: 0 veículos";
-            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em; text-align:center;">Nenhum veículo vinculado a esta conta.<br><br><small>Verifique se o campo "empresaId" no banco possui o valor: <b>' + empresaIdCliente + '</b></small></div>';
+            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em; text-align:center;">Nenhum veículo vinculado a esta conta.<br><br><small>Verifique se o campo "empresaId" no banco possui exatamente o valor: <br><b style="color:white;">' + empresaIdCliente + '</b></small></div>';
             return;
         }
 
@@ -295,7 +305,7 @@ function inicializarMonitoramento(empresaIdCliente) {
 
                 if (ultimosPontosContados[vID] !== pontosBrutos.length) {
                     ultimosPontosContados[vID] = pontosBrutos.length;
-                    desenharRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
+                    desenhoRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
                 }
             }
 
