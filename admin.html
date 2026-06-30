@@ -68,11 +68,33 @@
         .sidebar-header span { font-size: 0.75em; color: var(--ink-500); font-family: var(--mono); }
         .btn-logout { position: absolute; right: 16px; top: 18px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8em; }
 
+        /* PAINEL DE FILTRO DE DATA/HORÁRIO */
+        .filtro-historico {
+            padding: 12px 16px; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+        }
+        .filtro-historico .filtro-title { font-size: 0.78em; color: var(--telemetry); font-weight: bold; margin-bottom: 8px; display: block; }
+        .filtro-linha { display: flex; gap: 8px; margin-bottom: 8px; }
+        .filtro-campo { flex: 1; }
+        .filtro-campo label { display: block; font-size: 0.68em; color: var(--ink-500); margin-bottom: 4px; }
+        .filtro-campo input {
+            width: 100%; background: var(--bg-raised); border: 1px solid var(--border);
+            padding: 7px 6px; border-radius: 6px; color: white; box-sizing: border-box; font-size: 0.78em;
+        }
+        .filtro-botoes { display: flex; gap: 8px; }
+        .btn-filtrar, .btn-limpar-filtro {
+            flex: 1; padding: 8px; border-radius: 6px; border: none; cursor: pointer;
+            font-size: 0.78em; font-weight: bold;
+        }
+        .btn-filtrar { background: var(--telemetry); color: var(--bg-void); }
+        .btn-limpar-filtro { background: var(--bg-raised); color: var(--ink-500); border: 1px solid var(--border); }
+        .filtro-status { font-size: 0.7em; color: var(--amber); margin-top: 8px; text-align: center; }
+
         #listaVeiculos { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
         .card-veiculo { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; }
         .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 0.95em; }
         .card-status { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,166,0.1); color: var(--signal); font-weight: bold; }
         .card-status.parado { background: rgba(255,84,112,0.1); color: var(--danger); }
+        .card-status.historico { background: rgba(45,212,255,0.12); color: var(--telemetry); }
         .card-body { font-size: 0.78em; color: var(--ink-500); margin-top: 6px; line-height: 1.4; }
 
         .stops-timeline { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
@@ -84,6 +106,8 @@
         .pin-parado { background-color: var(--danger); border: 2px solid white; border-radius: 50%; }
         .pin-movimento { background-color: var(--signal); border: 2px solid white; border-radius: 50%; }
         .pin-historico-parada { background-color: var(--amber); border: 1.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+        .pin-inicio-rota { background-color: #ffffff; border: 3px solid var(--signal); border-radius: 50%; }
+        .pin-fim-rota { background-color: #ffffff; border: 3px solid var(--danger); border-radius: 50%; }
 
         /* Legenda de velocidade */
         .legenda-velocidade {
@@ -100,8 +124,8 @@
 
         @media (max-width: 768px) {
             #appContainer { flex-direction: column; }
-            #sidebar { width: 100%; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }
-            #map { width: 100%; height: 55vh; }
+            #sidebar { width: 100%; height: 50vh; border-right: none; border-bottom: 1px solid var(--border); }
+            #map { width: 100%; height: 50vh; }
         }
     </style>
 </head>
@@ -133,6 +157,27 @@
             <span id="contadorFrota">Carregando frota...</span>
             <button class="btn-logout" id="btnSair">Sair</button>
         </div>
+
+        <!-- NOVO: Filtro de data/horário passado -->
+        <div class="filtro-historico">
+            <span class="filtro-title">🕘 Ver trajeto de um período</span>
+            <div class="filtro-linha">
+                <div class="filtro-campo">
+                    <label>De</label>
+                    <input type="datetime-local" id="filtroInicio">
+                </div>
+                <div class="filtro-campo">
+                    <label>Até</label>
+                    <input type="datetime-local" id="filtroFim">
+                </div>
+            </div>
+            <div class="filtro-botoes">
+                <button class="btn-filtrar" id="btnFiltrar">Mostrar trajeto</button>
+                <button class="btn-limpar-filtro" id="btnLimparFiltro">Limpar</button>
+            </div>
+            <div class="filtro-status" id="filtroStatus"></div>
+        </div>
+
         <div id="listaVeiculos"></div>
     </div>
     <div id="map"></div>
@@ -179,7 +224,7 @@ legenda.onAdd = function() {
 legenda.addTo(map);
 
 var marcadoresAtivos = {};
-var segmentosTrajeto = {};   // agora é um array de polylines por veículo (um por trecho de velocidade)
+var segmentosTrajeto = {};   // array de polylines/marcadores por veículo
 var marcadoresParadas = {};
 var ultimosPontosContados = {};
 var coresAtribuidas = {};
@@ -187,6 +232,10 @@ var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7'];
 var indiceCor = 0;
 var firebaseListener = null;
 var cacheEndereco = {}; // evita repetir geocodificação reversa pro mesmo ponto
+
+// NOVO: estado do filtro de data/horário + último snapshot recebido do firebase
+var filtroAtivo = null; // { inicio: timestampMs, fim: timestampMs }
+var ultimoSnapshotVeiculos = null;
 
 function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length]; }
 
@@ -199,7 +248,6 @@ function corPorVelocidade(v) {
 }
 
 function formatarDataHora(timestampOuStr, horaFallback) {
-    // Aceita timestamp em ms, string ISO, ou usa hora simples já salva
     if (!timestampOuStr) return horaFallback || '--:--';
     var d;
     if (typeof timestampOuStr === 'number') d = new Date(timestampOuStr);
@@ -212,6 +260,24 @@ function formatarDataHora(timestampOuStr, horaFallback) {
     var mm = String(d.getMinutes()).padStart(2,'0');
     var ss = String(d.getSeconds()).padStart(2,'0');
     return `${dia}/${mes}/${ano} ${hh}:${mm}:${ss}`;
+}
+
+// Tenta extrair um timestamp em ms de um ponto do histórico, mesmo que só
+// tenha "hora" salva (nesse caso assume o dia de hoje, melhor esforço).
+function obterTimestampPonto(p) {
+    if (p.timestamp) {
+        var t = typeof p.timestamp === 'number' ? p.timestamp : new Date(p.timestamp).getTime();
+        if (!isNaN(t)) return t;
+    }
+    if (p.hora) {
+        var partes = String(p.hora).split(':');
+        if (partes.length >= 2) {
+            var agora = new Date();
+            agora.setHours(parseInt(partes[0],10) || 0, parseInt(partes[1],10) || 0, parseInt(partes[2],10) || 0, 0);
+            return agora.getTime();
+        }
+    }
+    return null;
 }
 
 /* =========================================================
@@ -255,6 +321,7 @@ auth.onAuthStateChanged(function(user) {
         document.getElementById('appContainer').style.display = 'none';
         if (firebaseListener) firebaseListener.off();
         limparMapaCompleto();
+        ultimoSnapshotVeiculos = null;
     }
 });
 
@@ -292,6 +359,45 @@ document.getElementById('btnSair').addEventListener('click', function() {
     auth.signOut();
 });
 
+/* =========================================================
+   FILTRO DE DATA/HORÁRIO PASSADO
+   ========================================================= */
+document.getElementById('btnFiltrar').addEventListener('click', function() {
+    var ini = document.getElementById('filtroInicio').value;
+    var fim = document.getElementById('filtroFim').value;
+    var statusDiv = document.getElementById('filtroStatus');
+
+    if (!ini || !fim) {
+        statusDiv.style.color = 'var(--danger)';
+        statusDiv.textContent = 'Selecione data/hora inicial e final.';
+        return;
+    }
+
+    var tsIni = new Date(ini).getTime();
+    var tsFim = new Date(fim).getTime();
+
+    if (isNaN(tsIni) || isNaN(tsFim) || tsIni > tsFim) {
+        statusDiv.style.color = 'var(--danger)';
+        statusDiv.textContent = 'Período inválido.';
+        return;
+    }
+
+    filtroAtivo = { inicio: tsIni, fim: tsFim };
+    statusDiv.style.color = 'var(--amber)';
+    statusDiv.textContent = 'Exibindo trajeto do período selecionado.';
+
+    if (ultimoSnapshotVeiculos) renderizarFrota(ultimoSnapshotVeiculos);
+});
+
+document.getElementById('btnLimparFiltro').addEventListener('click', function() {
+    filtroAtivo = null;
+    document.getElementById('filtroInicio').value = '';
+    document.getElementById('filtroFim').value = '';
+    document.getElementById('filtroStatus').textContent = '';
+    ultimosPontosContados = {}; // força redesenho do trajeto ao vivo
+    if (ultimoSnapshotVeiculos) renderizarFrota(ultimoSnapshotVeiculos);
+});
+
 function limparMapaCompleto() {
     Object.keys(marcadoresAtivos).forEach(id => map.removeLayer(marcadoresAtivos[id]));
     Object.keys(segmentosTrajeto).forEach(id => {
@@ -304,14 +410,25 @@ function limparMapaCompleto() {
 /* =========================================================
    SNAKE TO ROADS (OSRM MAP MATCHING) + COR POR VELOCIDADE
    + POPUP COM RUA / BAIRRO / CIDADE / UF / DATA / HORA
+   modoHistorico = true quando vem de um período filtrado pelo usuário
    ========================================================= */
-async function desenhoRotaNasRuas(vID, pontosBrutos, cor) {
+async function desenhoRotaNasRuas(vID, pontosBrutos, cor, modoHistorico) {
     if (pontosBrutos.length < 2) return;
 
-    // Limita a 90 pontos por chamada (limite prático do serviço público de match)
-    var amostra = pontosBrutos.slice(-90);
+    // Garante ordem cronológica antes de desenhar a linha
+    pontosBrutos = pontosBrutos.slice().sort(function(a, b) {
+        var ta = obterTimestampPonto(a) || 0;
+        var tb = obterTimestampPonto(b) || 0;
+        return ta - tb;
+    });
+
+    // No modo histórico (filtro de data) usamos todos os pontos do período.
+    // No modo ao vivo, limitamos a 90 pontos (limite prático do OSRM público).
+    var amostra = modoHistorico ? pontosBrutos : pontosBrutos.slice(-90);
+    if (amostra.length < 2) return;
+
     var coordsStr = amostra.map(p => p.lon + ',' + p.lat).join(';');
-    var radiusesStr = amostra.map(() => '25').join(';'); // tolerância de 25m para colar na via
+    var radiusesStr = amostra.map(() => '25').join(';');
 
     var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}` +
               `?geometries=geojson&overview=full&radiuses=${radiusesStr}&tidy=true`;
@@ -319,7 +436,6 @@ async function desenhoRotaNasRuas(vID, pontosBrutos, cor) {
     try {
         var res = await fetch(url);
         var data = await res.json();
-        if (data.code !== 'Ok' || !data.matchings || !data.matchings[0]) return;
 
         // Remove segmentos antigos desse veículo
         if (segmentosTrajeto[vID]) {
@@ -327,13 +443,16 @@ async function desenhoRotaNasRuas(vID, pontosBrutos, cor) {
         }
         segmentosTrajeto[vID] = [];
 
-        // O "tracepoints" relaciona cada ponto bruto a uma posição na rota casada.
-        // Usamos a geometria casada como linha-base e colorimos por trechos
-        // usando a velocidade do ponto bruto mais próximo de cada trecho.
-        var coordenadasRua = data.matchings[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        var coordenadasRua;
+        if (data.code === 'Ok' && data.matchings && data.matchings[0]) {
+            coordenadasRua = data.matchings[0].geometry.coordinates.map(c => [c[1], c[0]]);
+        } else {
+            // OSRM não conseguiu casar com as ruas (ex: poucos pontos ou área sem cobertura):
+            // ainda assim desenhamos a linha reta com os pontos brutos, para o histórico
+            // nunca ficar sem trajeto visível.
+            coordenadasRua = amostra.map(p => [p.lat, p.lon]);
+        }
 
-        // Divide a linha em pequenos trechos coloridos conforme a velocidade
-        // associada ao ponto bruto correspondente (aproximação por proporção).
         var totalBrutos = amostra.length;
         var totalRua = coordenadasRua.length;
 
@@ -341,19 +460,39 @@ async function desenhoRotaNasRuas(vID, pontosBrutos, cor) {
             var proporcao = i / totalRua;
             var indiceBruto = Math.min(totalBrutos - 1, Math.floor(proporcao * totalBrutos));
             var velocidadeRef = parseFloat(amostra[indiceBruto].velocidade || 0);
-            var corTrecho = corPorVelocidade(velocidadeRef);
+            var corTrecho = modoHistorico ? '#2dd4ff' : corPorVelocidade(velocidadeRef);
 
             var trecho = L.polyline(
                 [coordenadasRua[i], coordenadasRua[i + 1]],
-                { color: corTrecho, weight: 5, opacity: 0.9 }
+                { color: corTrecho, weight: modoHistorico ? 4 : 5, opacity: 0.9, dashArray: modoHistorico ? '6,6' : null }
             ).addTo(map);
 
             segmentosTrajeto[vID].push(trecho);
         }
 
-        // Adiciona popups com endereço completo + data/hora em alguns pontos-chave
-        // (a cada ~10 pontos brutos, para não sobrecarregar com requisições)
-        for (var j = 0; j < amostra.length; j += 10) {
+        // Marcadores de início e fim do trajeto (mais úteis no modo histórico)
+        if (modoHistorico) {
+            var primeiro = amostra[0];
+            var ultimo = amostra[amostra.length - 1];
+
+            var mInicio = L.marker([primeiro.lat, primeiro.lon], {
+                icon: L.divIcon({ className: 'pin-inicio-rota', html: '🟢', iconSize: [20,20] })
+            }).addTo(map).bindPopup(`<div class="popup-ponto"><b>Início do trajeto</b><br>${formatarDataHora(primeiro.timestamp, primeiro.hora)}</div>`);
+
+            var mFim = L.marker([ultimo.lat, ultimo.lon], {
+                icon: L.divIcon({ className: 'pin-fim-rota', html: '🔴', iconSize: [20,20] })
+            }).addTo(map).bindPopup(`<div class="popup-ponto"><b>Fim do trajeto</b><br>${formatarDataHora(ultimo.timestamp, ultimo.hora)}</div>`);
+
+            segmentosTrajeto[vID].push(mInicio, mFim);
+
+            var bounds = L.latLngBounds(amostra.map(p => [p.lat, p.lon]));
+            map.fitBounds(bounds, { padding: [40, 40] });
+        }
+
+        // Popups com endereço completo + data/hora em pontos-chave
+        // (a cada ~10 pontos, para não sobrecarregar com requisições)
+        var passo = modoHistorico ? Math.max(1, Math.floor(amostra.length / 20)) : 10;
+        for (var j = 0; j < amostra.length; j += passo) {
             var ponto = amostra[j];
             var endereco = await obterEndereco(ponto.lat, ponto.lon);
             var dataHoraFormatada = formatarDataHora(ponto.timestamp, ponto.hora);
@@ -394,110 +533,136 @@ function inicializarMonitoramento(empresaIdCliente) {
 
     firebaseListener.on('value', function(snapshot) {
         var veiculos = snapshot.val();
-        var listaContainer = document.getElementById('listaVeiculos');
-        listaContainer.innerHTML = "";
+        ultimoSnapshotVeiculos = veiculos;
+        renderizarFrota(veiculos);
+    });
+}
 
-        if (!veiculos) {
-            document.getElementById('contadorFrota').textContent = "Frota: 0 veículos";
-            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em; text-align:center;">Nenhum veículo vinculado a esta conta.<br><br><small>Verifique se o campo "empresaId" no banco possui exatamente o valor: <br><b style="color:white;">' + empresaIdCliente + '</b></small></div>';
-            return;
+// Extraído do listener do Firebase para poder ser chamado também
+// quando o usuário aplica/limpa o filtro de data, sem esperar novo dado.
+function renderizarFrota(veiculos) {
+    var listaContainer = document.getElementById('listaVeiculos');
+    listaContainer.innerHTML = "";
+
+    if (!veiculos) {
+        document.getElementById('contadorFrota').textContent = "Frota: 0 veículos";
+        listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em; text-align:center;">Nenhum veículo vinculado a esta conta.</div>';
+        return;
+    }
+
+    document.getElementById('contadorFrota').textContent = "Frota: " + Object.keys(veiculos).length + " veículo(s)";
+
+    Object.keys(veiculos).forEach(function(vID) {
+        var dadosAtual = veiculos[vID].atual;
+        var lat = dadosAtual.lat;
+        var lon = dadosAtual.lon;
+        var vel = parseFloat(dadosAtual.velocidade || 0);
+        var hora = dadosAtual.hora || "--:--";
+
+        var estaParado = vel <= 2;
+        var iconClass = estaParado ? 'pin-parado' : 'pin-movimento';
+        var customIcon = L.divIcon({ className: iconClass, iconSize: [16, 16], iconAnchor: [8, 8] });
+
+        if (marcadoresAtivos[vID]) {
+            marcadoresAtivos[vID].setLatLng([lat, lon]).setIcon(customIcon);
+        } else {
+            marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map);
         }
 
-        document.getElementById('contadorFrota').textContent = "Frota: " + Object.keys(veiculos).length + " veículo(s)";
+        obterEndereco(lat, lon).then(endereco => {
+            var dataHoraAtual = formatarDataHora(dadosAtual.timestamp, hora);
+            marcadoresAtivos[vID].bindPopup(`
+                <div class="popup-ponto">
+                    <b>Veículo:</b> ${vID}<br>
+                    <b>Status:</b> ${estaParado ? 'PARADO' : 'EM MOVIMENTO'}<br>
+                    <b>Velocidade:</b> ${vel} km/h<br>
+                    <b>Data/Hora:</b> ${dataHoraAtual}<br>
+                    <b>Rua:</b> ${endereco.rua}<br>
+                    <b>Bairro:</b> ${endereco.bairro}<br>
+                    <b>Cidade:</b> ${endereco.cidade}<br>
+                    <b>UF:</b> ${endereco.uf}
+                </div>
+            `);
+        });
 
-        Object.keys(veiculos).forEach(function(vID) {
-            var dadosAtual = veiculos[vID].atual;
-            var lat = dadosAtual.lat;
-            var lon = dadosAtual.lon;
-            var vel = parseFloat(dadosAtual.velocidade || 0);
-            var hora = dadosAtual.hora || "--:--";
+        if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
 
-            var estaParado = vel <= 2;
-            var iconClass = estaParado ? 'pin-parado' : 'pin-movimento';
-            var customIcon = L.divIcon({ className: iconClass, iconSize: [16, 16], iconAnchor: [8, 8] });
+        var htmlParadasTimeline = "";
+        if (!marcadoresParadas[vID]) marcadoresParadas[vID] = [];
 
-            if (marcadoresAtivos[vID]) {
-                marcadoresAtivos[vID].setLatLng([lat, lon]).setIcon(customIcon);
-            } else {
-                marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map);
-            }
-
-            // Popup do marcador atual também traz endereço + data/hora
-            obterEndereco(lat, lon).then(endereco => {
-                var dataHoraAtual = formatarDataHora(dadosAtual.timestamp, hora);
-                marcadoresAtivos[vID].bindPopup(`
-                    <div class="popup-ponto">
-                        <b>Veículo:</b> ${vID}<br>
-                        <b>Status:</b> ${estaParado ? 'PARADO' : 'EM MOVIMENTO'}<br>
-                        <b>Velocidade:</b> ${vel} km/h<br>
-                        <b>Data/Hora:</b> ${dataHoraAtual}<br>
-                        <b>Rua:</b> ${endereco.rua}<br>
-                        <b>Bairro:</b> ${endereco.bairro}<br>
-                        <b>Cidade:</b> ${endereco.cidade}<br>
-                        <b>UF:</b> ${endereco.uf}
-                    </div>
-                `);
+        if (veiculos[vID].historico) {
+            var pontosBrutos = [];
+            var paradasEncontradas = [];
+            Object.keys(veiculos[vID].historico).forEach(ch => {
+                var p = veiculos[vID].historico[ch];
+                var ponto = {
+                    lat: p.lat,
+                    lon: p.lon,
+                    velocidade: p.velocidade || 0,
+                    hora: p.hora,
+                    timestamp: p.timestamp || null,
+                    rua: p.rua, bairro: p.bairro, cidade: p.cidade, uf: p.uf
+                };
+                pontosBrutos.push(ponto);
+                if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
+                    paradasEncontradas.push(p);
+                }
             });
 
-            if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
-
-            var htmlParadasTimeline = "";
-            if (!marcadoresParadas[vID]) marcadoresParadas[vID] = [];
-
-            if (veiculos[vID].historico) {
-                var pontosBrutos = [];
-                var paradasEncontradas = [];
-                Object.keys(veiculos[vID].historico).forEach(ch => {
-                    var p = veiculos[vID].historico[ch];
-                    pontosBrutos.push({
-                        lat: p.lat,
-                        lon: p.lon,
-                        velocidade: p.velocidade || 0,
-                        hora: p.hora,
-                        timestamp: p.timestamp || null
-                    });
-                    if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
-                        paradasEncontradas.push(p);
-                    }
+            // Aplica o filtro de data/horário, se houver um período selecionado
+            var pontosParaDesenhar = pontosBrutos;
+            if (filtroAtivo) {
+                pontosParaDesenhar = pontosBrutos.filter(function(p) {
+                    var t = obterTimestampPonto(p);
+                    return t !== null && t >= filtroAtivo.inicio && t <= filtroAtivo.fim;
                 });
-
-                marcadoresParadas[vID].forEach(m => map.removeLayer(m));
-                marcadoresParadas[vID] = [];
-
-                paradasEncontradas.slice(-3).forEach(pStop => {
-                    var mStop = L.marker([pStop.lat, pStop.lon], { icon: L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18] }) }).addTo(map);
-                    var dataHoraParada = formatarDataHora(pStop.timestamp, pStop.hora);
-                    mStop.bindPopup(`
-                        <div class="popup-ponto">
-                            <b>Parada de:</b> ${vID}<br>
-                            <b>Data/Hora:</b> ${dataHoraParada}<br>
-                            <b>Rua:</b> ${pStop.rua}<br>
-                            <b>Bairro:</b> ${pStop.bairro || '—'}<br>
-                            <b>Cidade:</b> ${pStop.cidade || '—'}<br>
-                            <b>UF:</b> ${pStop.uf || '—'}
-                        </div>
-                    `);
-                    marcadoresParadas[vID].push(mStop);
-                    htmlParadasTimeline += `<div class="stop-item">⏱️ ${dataHoraParada} - 📍 ${pStop.rua}, ${pStop.bairro || ''}</div>`;
-                });
-
-                if (ultimosPontosContados[vID] !== pontosBrutos.length) {
-                    ultimosPontosContados[vID] = pontosBrutos.length;
-                    desenhoRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID]);
-                }
             }
 
-            var card = document.createElement('div');
-            card.className = 'card-veiculo';
-            card.style.borderLeft = "5px solid " + coresAtribuidas[vID];
-            card.innerHTML = `
-                <div class="card-title"><span>🚗 ${vID}</span><span class="card-status ${estaParado?'parado':''}">${estaParado?'PARADO':'MOVIMENTO'}</span></div>
-                <div class="card-body"><b>Velocidade:</b> ${vel} km/h | <b>Sinal:</b> ${hora}<br><b>Local:</b> ${dadosAtual.endereco || 'Rua pública'}</div>
-                ${htmlParadasTimeline ? `<div class="stops-timeline"><span class="stops-title">📍 Paradas:</span>${htmlParadasTimeline}</div>` : ''}
-            `;
-            card.onclick = () => { map.flyTo([lat, lon], 17); marcadoresAtivos[vID].openPopup(); };
-            listaContainer.appendChild(card);
-        });
+            marcadoresParadas[vID].forEach(m => map.removeLayer(m));
+            marcadoresParadas[vID] = [];
+
+            paradasEncontradas.slice(-3).forEach(pStop => {
+                var mStop = L.marker([pStop.lat, pStop.lon], { icon: L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18] }) }).addTo(map);
+                var dataHoraParada = formatarDataHora(pStop.timestamp, pStop.hora);
+                mStop.bindPopup(`
+                    <div class="popup-ponto">
+                        <b>Parada de:</b> ${vID}<br>
+                        <b>Data/Hora:</b> ${dataHoraParada}<br>
+                        <b>Rua:</b> ${pStop.rua}<br>
+                        <b>Bairro:</b> ${pStop.bairro || '—'}<br>
+                        <b>Cidade:</b> ${pStop.cidade || '—'}<br>
+                        <b>UF:</b> ${pStop.uf || '—'}
+                    </div>
+                `);
+                marcadoresParadas[vID].push(mStop);
+                htmlParadasTimeline += `<div class="stop-item">⏱️ ${dataHoraParada} - 📍 ${pStop.rua}, ${pStop.bairro || ''}</div>`;
+            });
+
+            if (filtroAtivo) {
+                // Modo histórico: sempre redesenha com o período selecionado
+                if (pontosParaDesenhar.length >= 2) {
+                    desenhoRotaNasRuas(vID, pontosParaDesenhar, coresAtribuidas[vID], true);
+                } else {
+                    if (segmentosTrajeto[vID]) segmentosTrajeto[vID].forEach(seg => map.removeLayer(seg));
+                    segmentosTrajeto[vID] = [];
+                }
+            } else if (ultimosPontosContados[vID] !== pontosBrutos.length) {
+                // Modo ao vivo: só redesenha quando chegam pontos novos
+                ultimosPontosContados[vID] = pontosBrutos.length;
+                desenhoRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], false);
+            }
+        }
+
+        var card = document.createElement('div');
+        card.className = 'card-veiculo';
+        card.style.borderLeft = "5px solid " + coresAtribuidas[vID];
+        card.innerHTML = `
+            <div class="card-title"><span>🚗 ${vID}</span><span class="card-status ${filtroAtivo ? 'historico' : (estaParado?'parado':'')}">${filtroAtivo ? 'TRAJETO HISTÓRICO' : (estaParado?'PARADO':'MOVIMENTO')}</span></div>
+            <div class="card-body"><b>Velocidade:</b> ${vel} km/h | <b>Sinal:</b> ${hora}<br><b>Local:</b> ${dadosAtual.endereco || 'Rua pública'}</div>
+            ${htmlParadasTimeline ? `<div class="stops-timeline"><span class="stops-title">📍 Paradas:</span>${htmlParadasTimeline}</div>` : ''}
+        `;
+        card.onclick = () => { map.flyTo([lat, lon], 17); marcadoresAtivos[vID].openPopup(); };
+        listaContainer.appendChild(card);
     });
 }
 </script>
