@@ -2,359 +2,87 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Everton GPS PRO</title>
-
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#0a0d12">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="GPS PRO">
-    <link rel="apple-touch-icon" href="./icons/icon-192.png">
-    <link rel="icon" href="./icons/icon-192.png">
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rastreador Everton GPS - Multi-Frota</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
-
     <style>
-        /* ============ TOKENS ============ */
         :root {
-            --bg-void: #0a0d12;
-            --bg-panel: #131820;
-            --bg-raised: #1a212b;
+            --bg-main: #0a0d12;
+            --bg-card: #131820;
             --border: rgba(255,255,255,.08);
-            --border-soft: rgba(255,255,255,.05);
-
-            --signal: #00ffa6;
-            --signal-dim: rgba(0,255,166,.16);
-            --telemetry: #2dd4ff;
-            --telemetry-dim: rgba(45,212,255,.14);
-            --amber: #ffb020;
-            --amber-dim: rgba(255,176,32,.14);
+            --signal-on: #00ffa6;
+            --signal-off: #ffb020;
             --danger: #ff5470;
-
-            --ink-100: #eef2f6;
-            --ink-200: #c7d0db;
-            --ink-500: #74808f;
-            --ink-700: #46505c;
-
-            --radius-lg: 14px;
-            --radius-md: 10px;
-            --radius-sm: 7px;
-            --mono: 'SF Mono','Roboto Mono','Consolas',ui-monospace,monospace;
-            --sans: -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-        }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+            --telemetry: #2dd4ff;
+            --text: #eef2f6;
+            --text-dim: #74808f;
         }
         body {
-            margin:0; padding:12px; padding-bottom:28px;
-            background:
-                radial-gradient(circle at 12% 0%, rgba(0,255,166,.05), transparent 40%),
-                radial-gradient(circle at 90% 10%, rgba(45,212,255,.04), transparent 45%),
-                var(--bg-void);
-            color:var(--ink-200); font-family:var(--sans);
-            max-width:560px; margin-inline:auto;
+            margin: 0; padding: 0; font-family: system-ui, sans-serif;
+            background: var(--bg-main); color: var(--text);
+            display: flex; flex-direction: column; height: 100vh;
         }
+        #map { width: 100%; height: 32vh; background: #000; }
+        .container { padding: 16px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
 
-        /* ============ HEADER ============ */
-        header {
-            background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg);
-            padding:14px 16px; margin-bottom:10px;
-        }
-        .brand-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-        .brand { display:flex; align-items:center; gap:10px; }
-        .brand-mark {
-            width:34px; height:34px; border-radius:9px; flex:none;
-            background:linear-gradient(145deg, var(--signal-dim), var(--telemetry-dim));
-            border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:1.05em;
-        }
-        .brand-text h1 { margin:0; font-size:1em; letter-spacing:.5px; color:var(--ink-100); font-weight:700; }
-        .brand-text span { font-size:.68em; color:var(--ink-500); font-family:var(--mono); letter-spacing:1px; }
+        .input-box { background: var(--bg-card); border: 1px solid var(--border); padding: 12px; border-radius: 8px; }
+        .input-box label { font-size: 0.75em; text-transform: uppercase; color: var(--text-dim); display: block; margin-bottom: 6px; font-weight: bold; }
+        .row { display: flex; gap: 8px; }
+        input { flex: 1; background: #1a212b; border: 1px solid var(--border); padding: 12px; border-radius: 6px; color: white; font-size: 1em; }
+        button { background: var(--signal-on); color: #000; border: none; padding: 12px 20px; font-weight: bold; border-radius: 6px; cursor: pointer; }
 
-        .gps-signal { display:flex; align-items:flex-end; gap:3px; height:18px; }
-        .gps-signal span { width:4px; border-radius:2px; background:var(--ink-700); transition:background .3s; }
-        .gps-signal span:nth-child(1){height:5px} .gps-signal span:nth-child(2){height:9px}
-        .gps-signal span:nth-child(3){height:13px} .gps-signal span:nth-child(4){height:18px}
-        .gps-signal.active span { background:var(--signal); animation:pulse-bar 1.4s ease-in-out infinite; }
-        .gps-signal.active span:nth-child(1){animation-delay:0s}
-        .gps-signal.active span:nth-child(2){animation-delay:.12s}
-        .gps-signal.active span:nth-child(3){animation-delay:.24s}
-        .gps-signal.active span:nth-child(4){animation-delay:.36s}
-        @keyframes pulse-bar { 0%,100%{opacity:1} 50%{opacity:.35} }
+        .frota-container { background: var(--bg-card); border: 1px solid var(--border); padding: 12px; border-radius: 8px; }
+        .frota-lista { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+        .tag-veiculo { background: #1a212b; border: 1px solid var(--border); padding: 6px 12px; border-radius: 20px; font-size: 0.85em; display: flex; align-items: center; gap: 8px; }
+        .btn-remover { color: var(--danger); cursor: pointer; font-weight: bold; border: none; background: none; padding: 0; font-size: 1.1em; }
 
-        /* Telemetry strip - signature element */
-        .telemetry-strip { display:flex; gap:8px; margin-top:12px; }
-        .tchip { flex:1; background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:7px 9px; min-width:0; }
-        .tchip-label { font-size:.6em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.6px; font-family:var(--mono); display:block; margin-bottom:2px; }
-        .tchip-value { font-size:.85em; color:var(--ink-100); font-family:var(--mono); font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-        .tchip-value.on { color:var(--signal); }
-        .tchip-value.warn { color:var(--amber); }
+        .status-bar { padding: 12px; border-radius: 6px; text-align: center; font-weight: bold; font-size: 0.9em; }
+        .status-online { background: rgba(0, 255, 166, 0.15); color: var(--signal-on); border: 1px solid var(--signal-on); }
+        .status-offline { background: rgba(255, 176, 32, 0.15); color: var(--signal-off); border: 1px solid var(--signal-off); }
 
-        /* ============ MAP ============ */
-        .map-wrapper { position:relative; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); }
-        #map { height:300px; width:100%; background:var(--bg-raised); z-index:1; }
-        .map-controls-overlay { position:absolute; top:10px; right:10px; z-index:1000; display:flex; flex-direction:column; gap:6px; }
-        .map-btn {
-            width:36px; height:36px; border-radius:8px; background:rgba(19,24,32,.92); border:1px solid var(--border);
-            color:var(--signal); font-size:1.05em; cursor:pointer; display:flex; align-items:center; justify-content:center;
-            backdrop-filter: blur(4px);
-        }
-        .map-btn:active { transform:scale(.94); }
+        .btn-force { background: #2dd4ff; color: #000; width: 100%; padding: 14px; font-size: 1em; text-transform: uppercase; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; }
 
-        /* ============ GENERIC ============ */
-        .controls { margin-top:10px; display:flex; flex-direction:column; gap:10px; }
-        .field-label { font-size:.66em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.8px; font-family:var(--mono); margin-bottom:5px; display:block; }
-        input[type="text"], input[type="date"], select {
-            padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-panel);
-            color:var(--ink-100); font-size:.95em; font-family:var(--mono); width:100%;
-        }
-        input::placeholder { color:var(--ink-700); }
+        .telemetry-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+        .telemetry-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.9em; }
 
-        button#btnAtualizar {
-            padding:15px; border:none; border-radius:var(--radius-md); font-weight:700; cursor:pointer; font-size:1.02em; letter-spacing:1.5px;
-            background:linear-gradient(135deg,#00ffa6,#2dd4ff); color:#021410;
-            box-shadow:0 8px 20px -8px rgba(0,255,166,.45);
-        }
-        button#btnAtualizar:active { transform:scale(.985); }
-
-        .external-apps-grid { display:flex; gap:8px; }
-        .btn-ext {
-            flex:1; padding:12px; border:1px solid var(--border); border-radius:var(--radius-md); font-weight:700; font-size:.85em;
-            text-align:center; text-decoration:none; display:none; align-items:center; justify-content:center; gap:6px;
-        }
-        .btn-ext-maps { background:rgba(66,133,244,.12); color:#8fb4ff; }
-        .btn-ext-waze { background:rgba(51,204,255,.12); color:#7fe3ff; }
-
-        /* ============ LOCATION CARD ============ */
-        .panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 14px 14px; position:relative; }
-        .panel-tag {
-            position:absolute; top:-9px; left:12px; background:var(--bg-raised); padding:2px 9px; font-size:.62em; color:var(--signal);
-            border:1px solid var(--border); border-radius:5px; font-family:var(--mono); letter-spacing:.8px;
-        }
-        .loc-row { display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px dashed var(--border-soft); }
-        .loc-row:last-of-type { border-bottom:none; }
-        .loc-key { font-size:.72em; color:var(--ink-500); font-family:var(--mono); letter-spacing:.4px; flex:none; }
-        .loc-val { font-size:.92em; color:var(--ink-100); text-align:right; font-weight:600; }
-        .loc-footer { margin-top:10px; padding-top:9px; border-top:1px solid var(--border-soft); display:flex; justify-content:space-between; font-size:.68em; color:var(--ink-500); font-family:var(--mono); }
-        .loc-footer b { color:var(--telemetry); font-weight:600; }
-
-        /* ============ METRICS ============ */
-        .metrics-grid { display:flex; flex-wrap:wrap; gap:8px; }
-        .metric-card { background:var(--bg-raised); border-radius:var(--radius-md); padding:12px 14px; border:1px solid var(--border-soft); flex:1 1 calc(50% - 4px); min-width:120px; }
-        .metric-label { font-size:.64em; color:var(--ink-500); text-transform:uppercase; font-family:var(--mono); letter-spacing:.6px; }
-        .metric-value { font-size:1.45em; font-weight:700; color:var(--signal); line-height:1.3; }
-        .metric-unit  { font-size:.62em; color:var(--ink-700); font-family:var(--mono); }
-
-        /* ============ STATUS ============ */
-        .status-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--ink-700); margin-right:7px; flex:none; }
-        .status-dot.active { background:var(--signal); animation:pulse-bar 1.4s ease-in-out infinite; }
-        .status-dot.warn { background:var(--amber); animation:pulse-bar 1.4s ease-in-out infinite; }
-        #statusText { font-size:.86em; }
-
-        /* ============ OFFLINE QUEUE DETAIL ============ */
-        #offlineBadge { display:none; align-items:center; gap:8px; background:var(--amber-dim); border:1px solid rgba(255,176,32,.4); color:var(--amber); border-radius:var(--radius-md); padding:10px 12px; font-size:.78em; font-family:var(--mono); }
-        #offlineBadge.visible { display:flex; }
-        #pendingCount { margin-left:auto; background:rgba(255,176,32,.18); border:1px solid rgba(255,176,32,.4); border-radius:4px; padding:1px 7px; flex:none; }
-
-        /* ============ WAKE LOCK ============ */
-        .wakelock-card { display:flex; flex-direction:column; gap:7px; }
-        .wakelock-toprow { display:flex; align-items:center; justify-content:space-between; gap:10px; }
-        .wakelock-toprow span.t { font-size:.88em; color:var(--ink-100); font-weight:600; }
-        .switch { position:relative; width:42px; height:24px; flex:none; }
-        .switch input { opacity:0; width:0; height:0; }
-        .slider { position:absolute; inset:0; background:var(--bg-raised); border:1px solid var(--border); border-radius:24px; cursor:pointer; transition:.2s; }
-        .slider::before { content:""; position:absolute; width:18px; height:18px; left:2px; top:2px; background:var(--ink-500); border-radius:50%; transition:.2s; }
-        .switch input:checked + .slider { background:var(--signal-dim); border-color:var(--signal); }
-        .switch input:checked + .slider::before { transform:translateX(17px); background:var(--signal); }
-        .micro-copy { font-size:.72em; color:var(--ink-500); line-height:1.45; margin:0; }
-        .micro-copy b { color:var(--ink-200); }
-
-        /* ============ HISTORY ============ */
-        #historicoPanel { background:var(--bg-panel); border-radius:var(--radius-lg); border:1px solid var(--border); overflow:hidden; }
-        .hist-header { display:flex; align-items:center; justify-content:space-between; padding:13px 14px; background:var(--bg-raised); cursor:pointer; }
-        .hist-header-left { font-size:.92em; font-weight:700; color:var(--ink-100); display:flex; align-items:center; gap:8px; }
-        .hist-header-left .ic { color:var(--telemetry); }
-        #histToggleIcon { color:var(--ink-500); transition:transform .2s; font-family:var(--mono); }
-        #histToggleIcon.open { transform:rotate(180deg); }
-        .hist-body { display:none; padding:13px; }
-        .hist-body.open { display:block; }
-        .hist-filters { display:flex; gap:8px; margin-bottom:10px; }
-        .hist-filters > div { flex:1; }
-        .btn-buscar { width:100%; padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:linear-gradient(135deg, rgba(0,255,166,.15), rgba(45,212,255,.12)); color:var(--ink-100); font-weight:700; cursor:pointer; font-size:.88em; letter-spacing:.4px; }
-        #histResultados { max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; margin-top:10px; }
-        .hist-item { background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:.8em; cursor:pointer; }
-        .hist-item:active { border-color:var(--signal); }
-        .hist-item .hr { color:var(--ink-100); font-weight:700; font-family:var(--mono); }
-        .hist-item .vel { color:var(--ink-500); }
-        .hist-item .addr { color:var(--telemetry); display:block; margin-top:3px; }
-
-        #pwaInstallBtn { display:none; width:100%; padding:11px; border:1px solid rgba(45,212,255,.35); border-radius:var(--radius-md); background:rgba(45,212,255,.07); color:var(--telemetry); cursor:pointer; font-family:var(--mono); font-size:.82em; }
-        #pwaInstallBtn.visible { display:block; }
-
-        footer.app-foot { text-align:center; font-size:.65em; color:var(--ink-700); font-family:var(--mono); margin-top:14px; letter-spacing:.4px; }
-
-        /* Estilos da Gestão Multiveículos */
-        .input-group { display: flex; gap: 6px; }
-        .input-group input { flex: 1; }
-        .input-group button { 
-            background: var(--signal-dim); color: var(--signal); border: 1px solid var(--signal);
-            border-radius: var(--radius-md); padding: 0 16px; font-weight: 700; font-family: var(--mono); cursor: pointer;
-        }
-        .chips-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-        .v-chip { 
-            background: var(--bg-raised); border: 1px solid var(--border); border-radius: 6px; 
-            padding: 4px 8px; font-size: 0.75em; font-family: var(--mono); color: var(--ink-100);
-            display: flex; align-items: center; gap: 6px;
-        }
-        .v-chip .remove-btn { color: var(--danger); cursor: pointer; font-weight: bold; }
+        .badge { font-size: 0.75em; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+        .badge-movimento { background: rgba(0,255,166,0.15); color: var(--signal-on); }
+        .badge-parado { background: rgba(255,176,32,0.15); color: var(--signal-off); }
+        .badge-perigo { background: rgba(255,84,112,0.15); color: var(--danger); }
     </style>
 </head>
 <body>
 
-<header>
-    <div class="brand-row">
-        <div class="brand">
-            <div class="brand-mark">🛰</div>
-            <div class="brand-text">
-                <h1>Everton GPS PRO</h1>
-                <span id="headerClock">--:--:--</span>
-            </div>
-        </div>
-        <div class="gps-signal" id="gpsSignal"><span></span><span></span><span></span><span></span></div>
-    </div>
+<div id="map"></div>
 
-    <div class="telemetry-strip">
-        <div class="tchip">
-            <span class="tchip-label">Sinal GPS</span>
-            <span class="tchip-value" id="chipSinal">Aguardando veículo</span>
-        </div>
-        <div class="tchip">
-            <span class="tchip-label">Última atualização</span>
-            <span class="tchip-value" id="chipAtualizacao">—</span>
-        </div>
-        <div class="tchip">
-            <span class="tchip-label">Fila offline</span>
-            <span class="tchip-value" id="chipFila">0</span>
-        </div>
-    </div>
-</header>
-
-<button id="pwaInstallBtn" onclick="instalarPWA()">⬇ INSTALAR APLICATIVO NA TELA INICIAL</button>
-
-<div class="controls">
-
-    <div class="map-wrapper">
-        <div id="map"></div>
-        <div class="map-controls-overlay">
-            <button class="map-btn" title="Centralizar" onclick="centralizarMapa()">📍</button>
-            <button class="map-btn" title="Limpar rota" onclick="limparRota()">🗑</button>
+<div class="container">
+    <div class="input-box">
+        <label>Cadastrar Novo Veículo na Lista</label>
+        <div class="row">
+            <input type="text" id="veiculoInput" placeholder="Ex: NISSAN ISA, FIAT UNO">
+            <button id="btnAdicionar">Adicionar</button>
         </div>
     </div>
 
-    <div>
-        <span class="field-label">Cadastrar veículos para rastreio</span>
-        <div class="input-group">
-            <input type="text" id="veiculoID" placeholder="Ex: VEICULO-01, CARRO-02">
-            <button onclick="adicionarVeiculo()">ADICIONAR</button>
-        </div>
-        <div class="chips-container" id="chipsContainer"></div>
+    <div class="frota-container">
+        <div style="font-size: 0.75em; color: var(--text-dim); text-transform: uppercase; font-weight: bold;">Veículos Monitorados Neste Aparelho</div>
+        <div class="frota-lista" id="listaFrotaLocal"></div>
     </div>
 
-    <div class="external-apps-grid">
-        <a id="btnExtMaps" href="#" target="_blank" class="btn-ext btn-ext-maps">🗺️ Abrir no Maps</a>
-        <a id="btnExtWaze" href="#" target="_blank" class="btn-ext btn-ext-waze">🚙 Abrir no Waze</a>
+    <div id="statusConexao" class="status-bar status-offline">
+        MODO OFFLINE — gravando localmente no aparelho <span id="contadorPendentes">(0 pendentes)</span>
     </div>
 
-    <div id="offlineBadge">
-        <span class="badge-dot"></span>
-        <span>MODO OFFLINE — gravando localmente no aparelho</span>
-        <span id="pendingCount">0 pendentes</span>
+    <button id="btnForcar" class="btn-force">📡 Forçar Sincronização Agora</button>
+
+    <div class="telemetry-card">
+        <div style="font-size: 0.75em; color: var(--text-dim); text-transform: uppercase; margin-bottom: 8px; font-weight: bold;">Última Telemetria Gerada</div>
+        <div class="telemetry-row"><span>Estado</span><span id="badStatus" class="badge badge-parado">PARADO</span></div>
+        <div class="telemetry-row"><span>Velocidade</span><b id="txtVelocidade">0 km/h</b></div>
+        <div class="telemetry-row"><span>Tempo de Parada</span><b id="txtTempoParado">00:00:00</b></div>
+        <div class="telemetry-row"><span>Localização</span><b id="txtEnderecoFull">—</b></div>
+        <div class="telemetry-row"><span>Horário do último ponto</span><span id="txtHora" style="color:var(--telemetry)">—</span></div>
     </div>
-
-    <button id="btnAtualizar" onclick="atualizarLocalizacao()">🛰 FORÇAR ATUALIZAÇÃO AGORA</button>
-
-    <div class="panel">
-        <span class="panel-tag">LOCALIZAÇÃO ATUAL</span>
-        <div class="loc-row"><span class="loc-key">Rua</span><span class="loc-val" id="locRua">—</span></div>
-        <div class="loc-row"><span class="loc-key">Bairro</span><span class="loc-val" id="locBairro">—</span></div>
-        <div class="loc-row"><span class="loc-key">Cidade</span><span class="loc-val" id="locCidade">—</span></div>
-        <div class="loc-footer">
-            <span>Horário: <b id="locHora">—</b></span>
-            <span>Data: <b id="locData">—</b></span>
-        </div>
-    </div>
-
-    <div class="metrics-grid" id="metricsGrid" style="display:none">
-        <div class="metric-card">
-            <div class="metric-label">Velocidade</div>
-            <div class="metric-value" id="mv-vel">0</div>
-            <div class="metric-unit">KM/H</div>
-        </div>
-        <div class="metric-card">
-            <div class="metric-label">Pontos gravados</div>
-            <div class="metric-value" id="mv-pts">0</div>
-            <div class="metric-unit">REGISTROS</div>
-        </div>
-    </div>
-
-    <div class="panel">
-        <span class="panel-tag">SISTEMA</span>
-        <div style="display:flex; align-items:center;">
-            <span class="status-dot" id="statusDot"></span>
-            <span id="statusText">Aguardando inserção de veículos...</span>
-        </div>
-    </div>
-
-    <div class="panel wakelock-card">
-        <span class="panel-tag">TELA & RASTREIO EM SEGUNDO PLANO</span>
-        <div class="wakelock-toprow">
-            <span class="t">Manter tela ativa durante o rastreio</span>
-            <label class="switch">
-                <input type="checkbox" id="wakeLockToggle" onchange="alternarWakeLock()">
-                <span class="slider"></span>
-            </label>
-        </div>
-        <p class="micro-copy">
-            Navegadores <b>suspendem a captura de GPS quando a tela é apagada</b> ou o app fica em segundo plano —
-            isso é uma restrição do sistema operacional, não deste aplicativo. Ativando esta opção, a tela permanece
-            ligada (pode reduzir o brilho) enquanto o rastreamento estiver ativo, garantindo a captura contínua.
-            Os pontos capturados offline ficam guardados no aparelho e são enviados automaticamente quando a
-            internet voltar — mesmo que o app esteja minimizado.
-        </p>
-    </div>
-
-    <div id="historicoPanel">
-        <div class="hist-header" onclick="toggleHistorico()">
-            <div class="hist-header-left"><span class="ic">🔍</span> Consultar datas passadas</div>
-            <span id="histToggleIcon">▾</span>
-        </div>
-        <div class="hist-body" id="histBody">
-            <div class="hist-filters" style="flex-direction: column; gap: 10px;">
-                <div>
-                    <span class="field-label">Veículo para consulta</span>
-                    <select id="filtroVeiculoID">
-                        <option value="">Nenhum veículo cadastrado</option>
-                    </select>
-                </div>
-                <div class="hist-filters">
-                    <div>
-                        <span class="field-label">Data início</span>
-                        <input type="date" id="filtroDataInicio">
-                    </div>
-                    <div>
-                        <span class="field-label">Data fim</span>
-                        <input type="date" id="filtroDataFim">
-                    </div>
-                </div>
-            </div>
-            <button class="btn-buscar" onclick="buscarHistorico()">BUSCAR NO BANCO DE DADOS</button>
-            <div id="histResultados"></div>
-        </div>
-    </div>
-
-    <footer class="app-foot">EVERTON GPS PRO · RASTREAMENTO VEICULAR</footer>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -362,436 +90,266 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-// Inicialização do Service Worker para rodar em segundo plano e sincronizar offline
-if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./service-worker.js').then(function(reg) {
-        console.log('Service Worker ativo para segundo plano.');
-        swRegistration = reg;
-    }).catch(function(err){ console.error('Erro SW:', err); });
-}
-var swRegistration = null;
-
-// Configuração do Firebase
+// ===================== CONFIGURAÇÃO =====================
 var firebaseConfig = {
-    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
+    apiKey: "AIzaSyDwKIS8wL3D7OuaysVFV_xyAsFsKo2eXzY",
     authDomain: "everton-gps.firebaseapp.com",
     databaseURL: "https://everton-gps-default-rtdb.firebaseio.com",
     projectId: "everton-gps",
-    storageBucket: "everton-gps.appspot.com",
+    storageBucket: "everton-gps.firebasestorage.app",
     messagingSenderId: "688936933095",
-    appId: "1:688936933095:web:5508a8e1008f1b4020a1db"
+    appId: "1:688936933095:web:790b2407334e8b148e3442"
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
-// Variáveis de Controle
-var map, marcador, linhaRota = null;
-var historicoRota = [];
-var totalRegistros = 0;
-var ultimoFixTimestamp = null;
-var wakeLock = null;
-var wakeLockDesejado = false;
-var listaVeiculos = [];
-var watchId = null;
+var LIMITE_VELOCIDADE = 80;
+var EMPRESA_ID = "tricolordosul5x0_gmail_com";
 
-// Inicializar Mapa
-map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 15);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-marcador = L.marker([-29.6133, -52.1919]).addTo(map);
+// ===================== MAPA =====================
+var map = L.map('map', { zoomControl: false }).setView([-29.6133, -52.1919], 15);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+var marcador = L.marker([-29.6133, -52.1919]).addTo(map);
+var polilinhaRota = L.polyline([], {color: '#2dd4ff', weight: 6, opacity: 0.9}).addTo(map);
 
-/* =========================================================
-   GERENCIAMENTO DE MULTIPLOS VEÍCULOS
-   ========================================================= */
-function adicionarVeiculo() {
-    var input = document.getElementById('veiculoID');
-    var vID = input.value.trim().toUpperCase();
-    if (!vID) return;
-    if (listaVeiculos.includes(vID)) { alert("Este veículo já está na lista."); return; }
+// ===================== ESTADO PERSISTENTE =====================
+// 1) Lista de veículos cadastrados neste aparelho
+var listaVeiculos = JSON.parse(localStorage.getItem('frota_veiculos') || "[]");
 
-    listaVeiculos.push(vID);
-    input.value = "";
-    atualizarChips();
-    atualizarSeletorFiltro();
+// 2) Pontos JÁ geocodificados, prontos para enviar ao Firebase
+var filaPendentes = JSON.parse(localStorage.getItem('fila_rastreio') || "[]");
 
-    if (listaVeiculos.length === 1) {
-        document.getElementById('statusText').textContent = 'Inicializando GPS...';
-        iniciarGPS();
-    }
+// 3) Pontos brutos de GPS (lat/lon/hora) capturados OFFLINE, ainda sem endereço
+var filaGeocodificarDepois = JSON.parse(localStorage.getItem('fila_geocodificar') || "[]");
+
+// 4) Trilha desenhada no mapa
+var historicoCoordenadasLocais = JSON.parse(localStorage.getItem('historico_coords') || "[]");
+
+if (historicoCoordenadasLocais.length > 0) {
+    polilinhaRota.setLatLngs(historicoCoordenadasLocais);
+    var ultimo = historicoCoordenadasLocais[historicoCoordenadasLocais.length - 1];
+    map.setView(ultimo);
+    marcador.setLatLng(ultimo);
 }
 
-function removerVeiculo(vID) {
-    listaVeiculos = listaVeiculos.filter(function(v) { return v !== vID; });
-    atualizarChips();
-    atualizarSeletorFiltro();
-
-    if (listaVeiculos.length === 0 && watchId) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-        document.getElementById('statusText').textContent = 'Aguardando inserção de veículos...';
-        document.getElementById('chipSinal').textContent = 'Inativo';
-        document.getElementById('chipSinal').className = 'tchip-value warn';
-        document.getElementById('gpsSignal').classList.remove('active');
-        document.getElementById('statusDot').className = 'status-dot';
-    }
+function salvarTudo() {
+    localStorage.setItem('frota_veiculos', JSON.stringify(listaVeiculos));
+    localStorage.setItem('fila_rastreio', JSON.stringify(filaPendentes));
+    localStorage.setItem('fila_geocodificar', JSON.stringify(filaGeocodificarDepois));
+    localStorage.setItem('historico_coords', JSON.stringify(historicoCoordenadasLocais));
 }
 
-function atualizarChips() {
-    var container = document.getElementById('chipsContainer');
+// ===================== CADASTRO DE VEÍCULOS =====================
+function renderizarFrotaLocal() {
+    var container = document.getElementById('listaFrotaLocal');
     container.innerHTML = "";
-    listaVeiculos.forEach(function(vID) {
-        var chip = document.createElement('div');
-        chip.className = 'v-chip';
-        chip.innerHTML = '🚗 ' + vID + ' <span class="remove-btn" onclick="removerVeiculo(\''+vID+'\')">×</span>';
-        container.appendChild(chip);
-    });
-}
-
-function atualizarSeletorFiltro() {
-    var select = document.getElementById('filtroVeiculoID');
-    select.innerHTML = "";
     if (listaVeiculos.length === 0) {
-        select.innerHTML = '<option value="">Nenhum veículo cadastrado</option>';
+        container.innerHTML = "<span style='color:var(--text-dim); font-size:0.85em;'>Nenhum veículo adicionado ainda.</span>";
         return;
     }
-    listaVeiculos.forEach(function(vID) {
-        var op = document.createElement('option');
-        op.value = vID;
-        op.textContent = vID;
-        select.appendChild(op);
+    listaVeiculos.forEach((nome, index) => {
+        var tag = document.createElement('div');
+        tag.className = "tag-veiculo";
+        tag.innerHTML = `🚗 <b>${nome}</b> <button class="btn-remover" onclick="removerVeiculo(${index})">×</button>`;
+        container.appendChild(tag);
     });
 }
 
-/* =========================================================
-   RELÓGIO E TEMPO RELATIVO
-   ========================================================= */
-function atualizarRelogio() {
-    document.getElementById('headerClock').textContent = new Date().toLocaleTimeString('pt-BR');
-    if (ultimoFixTimestamp) {
-        var seg = Math.round((Date.now() - ultimoFixTimestamp) / 1000);
-        var txt = seg < 60 ? ('há ' + seg + 's') : ('há ' + Math.floor(seg/60) + 'min');
-        document.getElementById('chipAtualizacao').textContent = txt;
+document.getElementById('btnAdicionar').addEventListener('click', function() {
+    var nome = document.getElementById('veiculoInput').value.trim().toUpperCase();
+    if (!nome) return alert('Digite um identificador!');
+    if (listaVeiculos.includes(nome)) return alert('Esse veículo já está cadastrado!');
+
+    listaVeiculos.push(nome);
+    salvarTudo();
+    document.getElementById('veiculoInput').value = "";
+    renderizarFrotaLocal();
+    processarFilaGeocodificacao();
+    enviarDadosFila();
+});
+
+window.removerVeiculo = function(index) {
+    if (confirm(`Remover o veículo ${listaVeiculos[index]} da lista local?`)) {
+        listaVeiculos.splice(index, 1);
+        salvarTudo();
+        renderizarFrotaLocal();
     }
-}
-setInterval(atualizarRelogio, 1000);
-atualizarRelogio();
+};
 
-/* =========================================================
-   BANCO DE DADOS LOCAL (IndexedDB) — MODO OFFLINE
-   ========================================================= */
-var IDB_NAME = 'gps_local';
-function obterIDB(cb) {
-    var req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = function(e) { e.target.result.createObjectStore('fila', {autoIncrement:true}); };
-    req.onsuccess = function(e) { cb(e.target.result); };
-}
-
-function salvarOffline(dados) {
-    if (listaVeiculos.length === 0) return;
-    obterIDB(function(idb) {
-        var tx = idb.transaction('fila', 'readwrite');
-        var store = tx.objectStore('fila');
-        listaVeiculos.forEach(function(vID) {
-            store.add({ vID: vID, dados: dados });
-        });
-        tx.oncomplete = function() {
-            atualizarBadgeOffline();
-            if (swRegistration && 'sync' in swRegistration) {
-                swRegistration.sync.register('sync-fila-offline').catch(function(){});
-            }
-        };
-    });
-}
-
-function atualizarBadgeOffline() {
-    obterIDB(function(idb) {
-        var tx = idb.transaction('fila', 'readonly');
-        var req = tx.objectStore('fila').getAllKeys();
-        req.onsuccess = function() {
-            var n = req.result.length;
-            var badge = document.getElementById('offlineBadge');
-            document.getElementById('chipFila').textContent = n;
-            document.getElementById('chipFila').className = 'tchip-value' + (n > 0 ? ' warn' : '');
-            if (n > 0) { badge.classList.add('visible'); document.getElementById('pendingCount').textContent = n + ' pendentes'; }
-            else { badge.classList.remove('visible'); }
-        };
-    });
-}
-
-function sincronizarFila() {
-    if (!navigator.onLine || listaVeiculos.length === 0) return;
-    obterIDB(function(idb) {
-        var tx = idb.transaction('fila', 'readwrite');
-        var store = tx.objectStore('fila');
-        var cursorReq = store.openCursor();
-        cursorReq.onsuccess = function(e) {
-            var cursor = e.target.result;
-            if (cursor) {
-                var item = cursor.value;
-                db.ref('veiculos/' + item.vID + '/historico').push(item.dados).then(function() {
-                    cursor.delete();
-                    cursor.continue();
-                });
-            } else {
-                atualizarBadgeOffline();
-            }
-        };
-    });
-}
-window.addEventListener('online', sincronizarFila);
-
-/* =========================================================
-   GEOCODIFICAÇÃO REVERSA — RUA / BAIRRO / CIDADE (com throttle)
-   ========================================================= */
-var ultimoGeocodeTs = 0;
-var ultimoGeocodePos = null;
-
-function distanciaMetros(p1, p2) {
-    var R = 6371000;
-    var dLat = (p2[0]-p1[0]) * Math.PI/180;
-    var dLon = (p2[1]-p1[1]) * Math.PI/180;
-    var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-    return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-}
-
-function precisaGeocodificar(p) {
-    if (!ultimoGeocodePos) return true;
-    if (Date.now() - ultimoGeocodeTs > 20000) return true;
-    if (distanciaMetros(ultimoGeocodePos, p) > 60) return true;
-    return false;
-}
-
-function atualizarEndereco(lat, lon, dados) {
-    fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&zoom=18&addressdetails=1', {
-        headers: { 'User-Agent': 'EvertonGPSPRO/1.0' }
-    })
-    .then(function(r){ return r.json(); })
-    .then(function(data) {
-        var addr = data.address || {};
-        var rua = addr.road || addr.pedestrian || addr.cycleway || 'Via não identificada';
-        var numero = addr.house_number ? ', ' + addr.house_number : '';
-        var bairro = addr.suburb || addr.neighbourhood || addr.city_district || addr.quarter || 'Não identificado';
-        var cidade = addr.city || addr.town || addr.village || addr.municipality || 'Não identificada';
-
-        dados.rua = rua + numero;
-        dados.bairro = bairro;
-        dados.cidade = cidade;
-        dados.endereco = rua + numero + ' - ' + bairro + ' - ' + cidade;
-
-        document.getElementById('locRua').textContent = rua + numero;
-        document.getElementById('locBairro').textContent = bairro;
-        document.getElementById('locCidade').textContent = cidade;
-        document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
-
-        listaVeiculos.forEach(function(vID) {
-            db.ref('veiculos/' + vID + '/atual').set(dados);
-            db.ref('veiculos/' + vID + '/historico').push(dados);
-        });
-    })
-    .catch(function() {
-        dados.endereco = 'Lat: ' + lat.toFixed(4) + ', Lon: ' + lon.toFixed(4);
-        listaVeiculos.forEach(function(vID) {
-            db.ref('veiculos/' + vID + '/atual').set(dados);
-            db.ref('veiculos/' + vID + '/historico').push(dados);
-        });
-    });
-}
-
-/* =========================================================
-   PROCESSAR POSIÇÃO CAPTURADA
-   ========================================================= */
-function processarPosicao(pos) {
-    if (listaVeiculos.length === 0) return;
-    var lat = pos.coords.latitude;
-    var lon = pos.coords.longitude;
-    var vel = pos.coords.speed ? (pos.coords.speed * 3.6).toFixed(0) : 0;
-    var agora = new Date();
-
-    var dados = {
-        lat: lat, lon: lon, velocidade: vel,
-        endereco: "Buscando endereço...",
-        timestamp: agora.getTime(),
-        hora: agora.toLocaleTimeString('pt-BR'),
-        dataISO: agora.toISOString().slice(0,10)
-    };
-
-    ultimoFixTimestamp = agora.getTime();
-
-    var p = [lat, lon];
-    historicoRota.push(p);
-    marcador.setLatLng(p);
-    if (!linhaRota) { linhaRota = L.polyline(historicoRota, {color:'#00ffa6', weight:5}).addTo(map); }
-    else { linhaRota.setLatLngs(historicoRota); }
-    map.flyTo(p, 16);
-
-    document.getElementById('btnExtMaps').href = 'https://www.google.com/maps/search/?api=1&query=' + lat + ',' + lon;
-    document.getElementById('btnExtWaze').href = 'waze://?ll=' + lat + ',' + lon + '&navigate=yes';
-    document.getElementById('btnExtMaps').style.display = 'inline-flex';
-    document.getElementById('btnExtWaze').style.display = 'inline-flex';
-
-    totalRegistros++;
-    document.getElementById('metricsGrid').style.display = 'flex';
-    document.getElementById('mv-vel').textContent = vel;
-    document.getElementById('mv-pts').textContent = totalRegistros;
-    document.getElementById('locHora').textContent = dados.hora;
-    document.getElementById('locData').textContent = agora.toLocaleDateString('pt-BR');
-
-    document.getElementById('statusDot').className = 'status-dot active';
-    document.getElementById('gpsSignal').classList.add('active');
-    document.getElementById('chipSinal').textContent = 'Ativo (' + listaVeiculos.length + ')';
-    document.getElementById('chipSinal').className = 'tchip-value on';
-
-    if (navigator.onLine) {
-        document.getElementById('statusText').textContent = 'Buscando endereço atual...';
-        if (precisaGeocodificar(p)) {
-            ultimoGeocodeTs = Date.now();
-            ultimoGeocodePos = p;
-            atualizarEndereco(lat, lon, dados);
-        } else {
-            dados.rua = document.getElementById('locRua').textContent;
-            dados.bairro = document.getElementById('locBairro').textContent;
-            dados.cidade = document.getElementById('locCidade').textContent;
-            dados.endereco = dados.rua + ' - ' + dados.bairro + ' - ' + dados.cidade;
-            document.getElementById('statusText').textContent = 'Local: ' + dados.endereco;
-            
-            listaVeiculos.forEach(function(vID) {
-                db.ref('veiculos/' + vID + '/atual').set(dados);
-                db.ref('veiculos/' + vID + '/historico').push(dados);
-            });
-        }
+// ===================== TEMPO PARADO =====================
+var tempoParadoSegundos = parseInt(localStorage.getItem('tempo_parado_seg') || "0");
+setInterval(function() {
+    if (document.getElementById('badStatus').textContent === "PARADO") {
+        tempoParadoSegundos++;
+        localStorage.setItem('tempo_parado_seg', tempoParadoSegundos);
     } else {
-        dados.endereco = 'Capturado offline (sem endereço)';
-        salvarOffline(dados);
-        document.getElementById('statusText').textContent = 'Rastreando ativo (offline): ' + dados.hora;
+        tempoParadoSegundos = 0;
+        localStorage.setItem('tempo_parado_seg', "0");
     }
-}
+    var hrs = Math.floor(tempoParadoSegundos / 3600).toString().padStart(2, '0');
+    var mins = Math.floor((tempoParadoSegundos % 3600) / 60).toString().padStart(2, '0');
+    var segs = (tempoParadoSegundos % 60).toString().padStart(2, '0');
+    document.getElementById('txtTempoParado').textContent = `${hrs}:${mins}:${segs}`;
+}, 1000);
 
-function erroPosicao(err) {
-    if (listaVeiculos.length === 0) return;
-    document.getElementById('chipSinal').textContent = 'Sem sinal';
-    document.getElementById('chipSinal').className = 'tchip-value warn';
-    document.getElementById('gpsSignal').classList.remove('active');
-    document.getElementById('statusDot').className = 'status-dot warn';
-    document.getElementById('statusText').textContent = 'Sem sinal de GPS — verifique a localização do aparelho.';
-}
+// ===================== CAPTURA DE GPS (FUNCIONA OFFLINE) =====================
+if (navigator.geolocation) {
+    navigator.geolocation.watchPosition(function(position) {
+        var lat = position.coords.latitude;
+        var lon = position.coords.longitude;
+        var vel = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0;
+        var agora = new Date();
 
-/* =========================================================
-   CAPTURA CONTÍNUA
-   ========================================================= */
-function iniciarGPS() {
-    if (navigator.geolocation && listaVeiculos.length > 0 && !watchId) {
-        watchId = navigator.geolocation.watchPosition(processarPosicao, erroPosicao, {
-            enableHighAccuracy: true, maximumAge: 0, timeout: 30000
+        map.setView([lat, lon]);
+        marcador.setLatLng([lat, lon]);
+
+        historicoCoordenadasLocais.push([lat, lon]);
+        if (historicoCoordenadasLocais.length > 500) historicoCoordenadasLocais.shift();
+        polilinhaRota.setLatLngs(historicoCoordenadasLocais);
+
+        document.getElementById('txtVelocidade').textContent = vel + " km/h";
+        document.getElementById('txtHora').textContent = agora.toLocaleTimeString('pt-BR');
+
+        var situacao = "EM MOVIMENTO";
+        var badgeStatus = document.getElementById('badStatus');
+        if (vel <= 2) {
+            situacao = "PARADO";
+            badgeStatus.textContent = "PARADO";
+            badgeStatus.className = "badge badge-parado";
+        } else if (vel > LIMITE_VELOCIDADE) {
+            situacao = "VELOCIDADE ACIMA DO LIMITE";
+            badgeStatus.textContent = "EXCESSO DE VELOCIDADE";
+            badgeStatus.className = "badge badge-perigo";
+        } else {
+            badgeStatus.textContent = "EM MOVIMENTO";
+            badgeStatus.className = "badge badge-movimento";
+        }
+
+        // Sempre grava o ponto bruto localmente primeiro — não depende de internet
+        filaGeocodificarDepois.push({
+            lat: lat, lon: lon, velocidade: vel, status: situacao,
+            tempoParado: document.getElementById('txtTempoParado').textContent,
+            hora: agora.toLocaleTimeString('pt-BR'),
+            data: agora.toLocaleDateString('pt-BR'),
+            ts: agora.getTime()
         });
-    }
+        salvarTudo();
+        atualizarInterfaceEstado();
+
+        // Só tenta converter em endereço (rua/bairro/cidade/estado) se houver rede
+        if (navigator.onLine) processarFilaGeocodificacao();
+
+    }, function(e) { console.error(e); }, { enableHighAccuracy: true, maximumAge: 0 });
 }
-function atualizarLocalizacao() {
-    if (listaVeiculos.length === 0) { alert("Adicione pelo menos um veículo."); return; }
-    navigator.geolocation.getCurrentPosition(processarPosicao, erroPosicao, {enableHighAccuracy:true});
+
+// ===================== GEOCODIFICAÇÃO (RUA/BAIRRO/CIDADE/ESTADO) =====================
+// Roda só quando online; pega 1 ponto pendente por vez para não estourar limite do Nominatim
+var geocodificando = false;
+function processarFilaGeocodificacao() {
+    if (geocodificando || !navigator.onLine || filaGeocodificarDepois.length === 0) return;
+    geocodificando = true;
+
+    var ponto = filaGeocodificarDepois[0];
+    fetch(`https://nominatim.openstreetmap.org/reverse?lat=${ponto.lat}&lon=${ponto.lon}&format=json`)
+        .then(res => res.json())
+        .then(data => {
+            var addr = data.address || {};
+            var rua = addr.road || "Rua não localizada";
+            var bairro = addr.suburb || addr.neighbourhood || "Bairro não localizado";
+            var cidade = addr.city || addr.town || addr.village || "Cidade não localizada";
+            var estado = addr.state || "Estado não localizado";
+
+            document.getElementById('txtEnderecoFull').textContent = `${rua}, ${bairro}`;
+
+            if (listaVeiculos.length > 0) {
+                listaVeiculos.forEach(vNome => {
+                    filaPendentes.push({
+                        vID: vNome,
+                        lat: ponto.lat, lon: ponto.lon,
+                        velocidade: ponto.velocidade, status: ponto.status,
+                        tempoParado: ponto.tempoParado,
+                        hora: ponto.hora, data: ponto.data,
+                        rua: rua, bairro: bairro, cidade: cidade, estado: estado,
+                        endereco: `${rua}, ${bairro} - ${cidade}/${estado}`,
+                        empresaId: EMPRESA_ID
+                    });
+                });
+            }
+
+            filaGeocodificarDepois.shift();
+            salvarTudo();
+            atualizarInterfaceEstado();
+            enviarDadosFila();
+        })
+        .catch(err => console.warn("Sem rede para geocodificar agora:", err))
+        .finally(() => {
+            geocodificando = false;
+            if (filaGeocodificarDepois.length > 0 && navigator.onLine) {
+                setTimeout(processarFilaGeocodificacao, 1200); // respeita limite de uso do Nominatim
+            }
+        });
 }
 
-function centralizarMapa() { if (historicoRota.length > 0) map.flyTo(historicoRota[historicoRota.length - 1], 16); }
-function limparRota() { historicoRota = []; if (linhaRota) map.removeLayer(linhaRota); linhaRota = null; }
-
-/* =========================================================
-   RETOMADA AO VOLTAR PARA O APP
-   ========================================================= */
-document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'visible' && listaVeiculos.length > 0) {
-        if (wakeLockDesejado) solicitarWakeLock();
-        atualizarLocalizacao();
-    }
-});
-
-/* =========================================================
-   WAKE LOCK
-   ========================================================= */
-function solicitarWakeLock() {
-    if (!('wakeLock' in navigator)) {
-        document.getElementById('statusText').textContent = 'Este navegador não suporta manter a tela ativa automaticamente.';
-        document.getElementById('wakeLockToggle').checked = false;
-        wakeLockDesejado = false;
+// ===================== ENVIO PARA O FIREBASE =====================
+var enviando = false;
+function enviarDadosFila() {
+    if (enviando || !navigator.onLine || filaPendentes.length === 0) {
+        atualizarInterfaceEstado();
         return;
     }
-    navigator.wakeLock.request('screen').then(function(lock) {
-        wakeLock = lock;
-        wakeLock.addEventListener('release', function() { wakeLock = null; });
-    }).catch(function() {
-        document.getElementById('wakeLockToggle').checked = false;
-        wakeLockDesejado = false;
-    });
-}
-function alternarWakeLock() {
-    var ativo = document.getElementById('wakeLockToggle').checked;
-    wakeLockDesejado = ativo;
-    if (ativo) { solicitarWakeLock(); }
-    else if (wakeLock) { wakeLock.release(); wakeLock = null; }
-}
+    enviando = true;
 
-/* =========================================================
-   PAINEL DE HISTÓRICO POR CALENDÁRIO
-   ========================================================= */
-function toggleHistorico() {
-    var b = document.getElementById('histBody');
-    var icon = document.getElementById('histToggleIcon');
-    b.classList.toggle('open');
-    icon.classList.toggle('open');
-    var hoje = new Date().toISOString().slice(0,10);
-    document.getElementById('filtroDataInicio').value = hoje;
-    document.getElementById('filtroDataFim').value = hoje;
-}
+    var pacoteAtual = filaPendentes[0];
+    var targetVeiculo = pacoteAtual.vID;
+    var refAtual = db.ref('veiculos/' + targetVeiculo + '/atual');
+    var refHist = db.ref('veiculos/' + targetVeiculo + '/historico').push();
 
-function buscarHistorico() {
-    var vID = document.getElementById('filtroVeiculoID').value;
-    if (!vID) { alert("Selecione um veículo cadastrado para consultar."); return; }
-    
-    var inicio = document.getElementById('filtroDataInicio').value;
-    var fim = document.getElementById('filtroDataFim').value || inicio;
-    var painel = document.getElementById('histResultados');
-
-    painel.innerHTML = '<div style="color:#666; padding:10px;">Buscando registros...</div>';
-
-    var tsInicio = new Date(inicio + 'T00:00:00').getTime();
-    var tsFim = new Date(fim + 'T23:59:59').getTime();
-
-    db.ref('veiculos/' + vID + '/historico').orderByChild('timestamp').startAt(tsInicio).endAt(tsFim).once('value', function(snap) {
-        painel.innerHTML = '';
-        var pontosHist = [];
-        snap.forEach(function(child) {
-            var d = child.val();
-            pontosHist.push([d.lat, d.lon]);
-            var item = document.createElement('div');
-            item.className = 'hist-item';
-
-            var localExibido = d.endereco ? d.endereco : ('Lat: ' + d.lat.toFixed(4) + ', Lon: ' + d.lon.toFixed(4));
-
-            item.innerHTML = '<span class="hr">' + d.hora + '</span> <span class="vel">— ' + d.velocidade + ' km/h</span>' +
-                              '<span class="addr">📍 ' + localExibido + '</span>';
-            item.onclick = function() { map.flyTo([d.lat, d.lon], 17); };
-            painel.appendChild(item);
+    refAtual.set(pacoteAtual)
+        .then(() => refHist.set(pacoteAtual))
+        .then(() => {
+            filaPendentes.shift();
+            salvarTudo();
+        })
+        .catch((error) => console.warn("Falha ao enviar, mantendo na fila:", error))
+        .finally(() => {
+            enviando = false;
+            atualizarInterfaceEstado();
+            if (filaPendentes.length > 0 && navigator.onLine) enviarDadosFila();
         });
-
-        if (pontosHist.length > 0) {
-            if (linhaRota) map.removeLayer(linhaRota);
-            linhaRota = L.polyline(pontosHist, {color:'#2dd4ff', weight:5, dashArray:'5, 10'}).addTo(map);
-            map.fitBounds(linhaRota.getBounds());
-        } else {
-            painel.innerHTML = '<div style="color:var(--danger); padding:10px;">Nenhum registro encontrado no período.</div>';
-        }
-    });
 }
 
-/* =========================================================
-   INSTALAÇÃO PWA
-   ========================================================= */
-var defPrompt = null;
-window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault(); defPrompt = e; document.getElementById('pwaInstallBtn').classList.add('visible');
+function atualizarInterfaceEstado() {
+    var barra = document.getElementById('statusConexao');
+    var totalPendente = filaPendentes.length + filaGeocodificarDepois.length;
+    document.getElementById('contadorPendentes').textContent = `(${totalPendente} pendentes)`;
+
+    if (navigator.onLine && totalPendente === 0) {
+        barra.className = "status-bar status-online";
+        barra.innerHTML = "📡 SISTEMA ONLINE — Todos os veículos sincronizados!";
+    } else if (navigator.onLine) {
+        barra.className = "status-bar status-online";
+        barra.innerHTML = `📡 ONLINE — sincronizando... <span id="contadorPendentes">(${totalPendente} pendentes)</span>`;
+    } else {
+        barra.className = "status-bar status-offline";
+        barra.innerHTML = `MODO OFFLINE — gravando localmente no aparelho <span id="contadorPendentes">(${totalPendente} pendentes)</span>`;
+    }
+}
+
+// Detecta volta da internet automaticamente, sem precisar clicar em nada
+window.addEventListener('online', function() {
+    atualizarInterfaceEstado();
+    processarFilaGeocodificacao();
+    enviarDadosFila();
 });
-function instalarPWA() {
-    if (defPrompt) { defPrompt.prompt(); defPrompt = null; document.getElementById('pwaInstallBtn').classList.remove('visible'); }
-}
+window.addEventListener('offline', atualizarInterfaceEstado);
 
-atualizarBadgeOffline();
+document.getElementById('btnForcar').addEventListener('click', function() {
+    processarFilaGeocodificacao();
+    enviarDadosFila();
+});
+
+renderizarFrotaLocal();
+atualizarInterfaceEstado();
 </script>
 </body>
 </html>
