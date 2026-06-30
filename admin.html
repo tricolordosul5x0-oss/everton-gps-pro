@@ -28,7 +28,7 @@
             display: flex; height: 100vh;
             overflow: hidden;
         }
-        
+
         /* TELA DE LOGIN (SOBREPOSTA) */
         #loginOverlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
@@ -58,7 +58,7 @@
 
         /* INTERFACE DO MAPA (SÓ APARECE APÓS LOGAR) */
         #appContainer { display: none; width: 100%; height: 100%; }
-        
+
         #sidebar {
             width: 340px; background: var(--bg-panel); border-right: 1px solid var(--border);
             display: flex; flex-direction: column; z-index: 10; flex-shrink: 0;
@@ -67,14 +67,14 @@
         .sidebar-header h2 { margin: 0; font-size: 1.2em; color: var(--signal); }
         .sidebar-header span { font-size: 0.75em; color: var(--ink-500); font-family: var(--mono); }
         .btn-logout { position: absolute; right: 16px; top: 18px; background: none; border: none; color: var(--danger); cursor: pointer; font-size: 0.8em; }
-        
+
         #listaVeiculos { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
         .card-veiculo { background: var(--bg-raised); border: 1px solid var(--border); border-radius: 8px; padding: 12px; cursor: pointer; }
         .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 0.95em; }
         .card-status { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,166,0.1); color: var(--signal); font-weight: bold; }
         .card-status.parado { background: rgba(255,84,112,0.1); color: var(--danger); }
         .card-body { font-size: 0.78em; color: var(--ink-500); margin-top: 6px; line-height: 1.4; }
-        
+
         .stops-timeline { margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--border); }
         .stops-title { font-size: 0.72em; color: var(--amber); font-weight: bold; margin-bottom: 4px; display: block; }
         .stop-item { font-size: 0.72em; color: var(--ink-100); padding: 3px 0; }
@@ -84,6 +84,19 @@
         .pin-parado { background-color: var(--danger); border: 2px solid white; border-radius: 50%; }
         .pin-movimento { background-color: var(--signal); border: 2px solid white; border-radius: 50%; }
         .pin-historico-parada { background-color: var(--amber); border: 1.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+
+        /* Legenda de velocidade */
+        .legenda-velocidade {
+            position: absolute; bottom: 20px; right: 10px; z-index: 500;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            padding: 10px 12px; border-radius: 8px; font-size: 0.72em;
+            color: var(--ink-100); box-shadow: 0 4px 14px rgba(0,0,0,.4);
+        }
+        .legenda-velocidade div { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+        .legenda-cor { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+
+        .popup-ponto { font-family: var(--sans); font-size: 0.82em; line-height: 1.5; }
+        .popup-ponto b { color: #2dd4ff; }
 
         @media (max-width: 768px) {
             #appContainer { flex-direction: column; }
@@ -107,7 +120,6 @@
             <label>Senha de Acesso</label>
             <input type="password" id="senhaInput" placeholder="******">
         </div>
-        <!-- Vinculado via ID para escuta direta e evitar falhas de clique -->
         <button class="btn-login" id="btnEntrar">Entrar no Painel</button>
         <div id="loginErro"></div>
     </div>
@@ -133,7 +145,6 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// Configuração Corrigida com base no seu print 39396.jpg
 var firebaseConfig = {
     apiKey: "AIzaSyDwKIS8wL3D7OuaysVFV_xyAsFsKo2eXzY",
     authDomain: "everton-gps.firebaseapp.com",
@@ -145,7 +156,6 @@ var firebaseConfig = {
     measurementId: "G-X14EWTZNRD"
 };
 
-// Inicialização
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 var auth = firebase.auth();
@@ -153,16 +163,81 @@ var auth = firebase.auth();
 var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 13);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
+// Legenda fixa de velocidade
+var legenda = L.control({position: 'bottomright'});
+legenda.onAdd = function() {
+    var div = L.DomUtil.create('div', 'legenda-velocidade');
+    div.innerHTML = `
+        <div><span class="legenda-cor" style="background:#ff5470"></span> Parado (0 km/h)</div>
+        <div><span class="legenda-cor" style="background:#ffb020"></span> Até 20 km/h</div>
+        <div><span class="legenda-cor" style="background:#2dd4ff"></span> 20-40 km/h</div>
+        <div><span class="legenda-cor" style="background:#00ffa6"></span> 40-60 km/h</div>
+        <div><span class="legenda-cor" style="background:#a855f7"></span> Acima de 60 km/h</div>
+    `;
+    return div;
+};
+legenda.addTo(map);
+
 var marcadoresAtivos = {};
-var linhasTrajeto = {};
-var marcadoresParadas = {}; 
-var ultimosPontosContados = {}; 
+var segmentosTrajeto = {};   // agora é um array de polylines por veículo (um por trecho de velocidade)
+var marcadoresParadas = {};
+var ultimosPontosContados = {};
 var coresAtribuidas = {};
 var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7'];
 var indiceCor = 0;
 var firebaseListener = null;
+var cacheEndereco = {}; // evita repetir geocodificação reversa pro mesmo ponto
 
 function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length]; }
+
+function corPorVelocidade(v) {
+    if (v <= 2) return '#ff5470';
+    if (v <= 20) return '#ffb020';
+    if (v <= 40) return '#2dd4ff';
+    if (v <= 60) return '#00ffa6';
+    return '#a855f7';
+}
+
+function formatarDataHora(timestampOuStr, horaFallback) {
+    // Aceita timestamp em ms, string ISO, ou usa hora simples já salva
+    if (!timestampOuStr) return horaFallback || '--:--';
+    var d;
+    if (typeof timestampOuStr === 'number') d = new Date(timestampOuStr);
+    else d = new Date(timestampOuStr);
+    if (isNaN(d.getTime())) return horaFallback || '--:--';
+    var dia = String(d.getDate()).padStart(2,'0');
+    var mes = String(d.getMonth()+1).padStart(2,'0');
+    var ano = d.getFullYear();
+    var hh = String(d.getHours()).padStart(2,'0');
+    var mm = String(d.getMinutes()).padStart(2,'0');
+    var ss = String(d.getSeconds()).padStart(2,'0');
+    return `${dia}/${mes}/${ano} ${hh}:${mm}:${ss}`;
+}
+
+/* =========================================================
+   GEOCODIFICAÇÃO REVERSA (Nominatim) — rua, bairro, cidade, UF
+   ========================================================= */
+async function obterEndereco(lat, lon) {
+    var chave = lat.toFixed(5) + ',' + lon.toFixed(5);
+    if (cacheEndereco[chave]) return cacheEndereco[chave];
+
+    try {
+        var url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`;
+        var resp = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
+        var data = await resp.json();
+        var addr = data.address || {};
+        var endereco = {
+            rua: addr.road || addr.pedestrian || addr.residential || 'Rua não identificada',
+            bairro: addr.suburb || addr.neighbourhood || addr.village || '—',
+            cidade: addr.city || addr.town || addr.municipality || '—',
+            uf: addr.state_code || (addr.state ? addr.state.substring(0,2).toUpperCase() : '—')
+        };
+        cacheEndereco[chave] = endereco;
+        return endereco;
+    } catch (e) {
+        return { rua: 'Não disponível', bairro: '—', cidade: '—', uf: '—' };
+    }
+}
 
 /* =========================================================
    CONTROLE DE ACESSO (AUTHENTICATION)
@@ -172,7 +247,7 @@ auth.onAuthStateChanged(function(user) {
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('appContainer').style.display = 'flex';
         map.invalidateSize();
-        
+
         var empresaIdLimpo = user.email.replace(/[^a-zA-Z0-9]/g, "_");
         inicializarMonitoramento(empresaIdLimpo);
     } else {
@@ -183,7 +258,6 @@ auth.onAuthStateChanged(function(user) {
     }
 });
 
-// Captura do evento de clique de forma direta e blindada
 document.getElementById('btnEntrar').addEventListener('click', function() {
     var email = document.getElementById('emailInput').value.trim();
     var senha = document.getElementById('senhaInput').value;
@@ -195,14 +269,13 @@ document.getElementById('btnEntrar').addEventListener('click', function() {
         return;
     }
 
-    // Alerta de depuração para verificar se o clique respondeu no Acode
     erroDiv.style.color = "var(--telemetry)";
     erroDiv.textContent = "Conectando ao Firebase...";
 
     auth.signInWithEmailAndPassword(email, senha).catch(function(error) {
         console.error(error);
         erroDiv.style.color = "var(--danger)";
-        
+
         if (error.code === "auth/wrong-password") {
             erroDiv.textContent = "Senha incorreta para este usuário.";
         } else if (error.code === "auth/user-not-found") {
@@ -221,33 +294,104 @@ document.getElementById('btnSair').addEventListener('click', function() {
 
 function limparMapaCompleto() {
     Object.keys(marcadoresAtivos).forEach(id => map.removeLayer(marcadoresAtivos[id]));
-    Object.keys(linhasTrajeto).forEach(id => map.removeLayer(linhasTrajeto[id]));
+    Object.keys(segmentosTrajeto).forEach(id => {
+        segmentosTrajeto[id].forEach(seg => map.removeLayer(seg));
+    });
     Object.keys(marcadoresParadas).forEach(id => marcadoresParadas[id].forEach(m => map.removeLayer(m)));
-    marcadoresAtivos = {}; linhasTrajeto = {}; marcadoresParadas = {}; ultimosPontosContados = {};
+    marcadoresAtivos = {}; segmentosTrajeto = {}; marcadoresParadas = {}; ultimosPontosContados = {};
 }
 
 /* =========================================================
-   SNAKE TO ROADS & MONITORAMENTO REALTIME INTEGRADO
+   SNAKE TO ROADS (OSRM MAP MATCHING) + COR POR VELOCIDADE
+   + POPUP COM RUA / BAIRRO / CIDADE / UF / DATA / HORA
    ========================================================= */
-function desenhoRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
-    if (coordenadasBrutas.length < 2) return;
-    var stringCoordenadas = coordenadasBrutas.slice(-50).map(p => p[1] + ',' + p[0]).join(';');
-    var url = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
+async function desenhoRotaNasRuas(vID, pontosBrutos, cor) {
+    if (pontosBrutos.length < 2) return;
 
-    fetch(url).then(res => res.json()).then(data => {
-        if (data.code === 'Ok' && data.routes[0]) {
-            var coordenadasRuas = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
-            if (linhasTrajeto[vID]) { linhasTrajeto[vID].setLatLngs(coordenadasRuas); } 
-            else { linhasTrajeto[vID] = L.polyline(coordenadasRuas, { color: cor, weight: 5, opacity: 0.85 }).addTo(map); }
+    // Limita a 90 pontos por chamada (limite prático do serviço público de match)
+    var amostra = pontosBrutos.slice(-90);
+    var coordsStr = amostra.map(p => p.lon + ',' + p.lat).join(';');
+    var radiusesStr = amostra.map(() => '25').join(';'); // tolerância de 25m para colar na via
+
+    var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}` +
+              `?geometries=geojson&overview=full&radiuses=${radiusesStr}&tidy=true`;
+
+    try {
+        var res = await fetch(url);
+        var data = await res.json();
+        if (data.code !== 'Ok' || !data.matchings || !data.matchings[0]) return;
+
+        // Remove segmentos antigos desse veículo
+        if (segmentosTrajeto[vID]) {
+            segmentosTrajeto[vID].forEach(seg => map.removeLayer(seg));
         }
-    }).catch(() => {});
+        segmentosTrajeto[vID] = [];
+
+        // O "tracepoints" relaciona cada ponto bruto a uma posição na rota casada.
+        // Usamos a geometria casada como linha-base e colorimos por trechos
+        // usando a velocidade do ponto bruto mais próximo de cada trecho.
+        var coordenadasRua = data.matchings[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+        // Divide a linha em pequenos trechos coloridos conforme a velocidade
+        // associada ao ponto bruto correspondente (aproximação por proporção).
+        var totalBrutos = amostra.length;
+        var totalRua = coordenadasRua.length;
+
+        for (var i = 0; i < totalRua - 1; i++) {
+            var proporcao = i / totalRua;
+            var indiceBruto = Math.min(totalBrutos - 1, Math.floor(proporcao * totalBrutos));
+            var velocidadeRef = parseFloat(amostra[indiceBruto].velocidade || 0);
+            var corTrecho = corPorVelocidade(velocidadeRef);
+
+            var trecho = L.polyline(
+                [coordenadasRua[i], coordenadasRua[i + 1]],
+                { color: corTrecho, weight: 5, opacity: 0.9 }
+            ).addTo(map);
+
+            segmentosTrajeto[vID].push(trecho);
+        }
+
+        // Adiciona popups com endereço completo + data/hora em alguns pontos-chave
+        // (a cada ~10 pontos brutos, para não sobrecarregar com requisições)
+        for (var j = 0; j < amostra.length; j += 10) {
+            var ponto = amostra[j];
+            var endereco = await obterEndereco(ponto.lat, ponto.lon);
+            var dataHoraFormatada = formatarDataHora(ponto.timestamp, ponto.hora);
+            var velocidadePonto = parseFloat(ponto.velocidade || 0);
+
+            var marcadorInfo = L.circleMarker([ponto.lat, ponto.lon], {
+                radius: 4,
+                color: corPorVelocidade(velocidadePonto),
+                fillColor: corPorVelocidade(velocidadePonto),
+                fillOpacity: 0.9,
+                weight: 1
+            }).addTo(map);
+
+            marcadorInfo.bindPopup(`
+                <div class="popup-ponto">
+                    <b>Veículo:</b> ${vID}<br>
+                    <b>Velocidade:</b> ${velocidadePonto} km/h<br>
+                    <b>Data/Hora:</b> ${dataHoraFormatada}<br>
+                    <b>Rua:</b> ${endereco.rua}<br>
+                    <b>Bairro:</b> ${endereco.bairro}<br>
+                    <b>Cidade:</b> ${endereco.cidade}<br>
+                    <b>UF:</b> ${endereco.uf}
+                </div>
+            `);
+
+            segmentosTrajeto[vID].push(marcadorInfo);
+        }
+
+    } catch (e) {
+        console.error('Erro no map matching:', e);
+    }
 }
 
 function inicializarMonitoramento(empresaIdCliente) {
     var refVeiculos = db.ref('veiculos');
-    
+
     firebaseListener = refVeiculos.orderByChild('atual/empresaId').equalTo(empresaIdCliente);
-    
+
     firebaseListener.on('value', function(snapshot) {
         var veiculos = snapshot.val();
         var listaContainer = document.getElementById('listaVeiculos');
@@ -275,8 +419,25 @@ function inicializarMonitoramento(empresaIdCliente) {
             if (marcadoresAtivos[vID]) {
                 marcadoresAtivos[vID].setLatLng([lat, lon]).setIcon(customIcon);
             } else {
-                marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map).bindPopup(`<b>${vID}</b>`);
+                marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map);
             }
+
+            // Popup do marcador atual também traz endereço + data/hora
+            obterEndereco(lat, lon).then(endereco => {
+                var dataHoraAtual = formatarDataHora(dadosAtual.timestamp, hora);
+                marcadoresAtivos[vID].bindPopup(`
+                    <div class="popup-ponto">
+                        <b>Veículo:</b> ${vID}<br>
+                        <b>Status:</b> ${estaParado ? 'PARADO' : 'EM MOVIMENTO'}<br>
+                        <b>Velocidade:</b> ${vel} km/h<br>
+                        <b>Data/Hora:</b> ${dataHoraAtual}<br>
+                        <b>Rua:</b> ${endereco.rua}<br>
+                        <b>Bairro:</b> ${endereco.bairro}<br>
+                        <b>Cidade:</b> ${endereco.cidade}<br>
+                        <b>UF:</b> ${endereco.uf}
+                    </div>
+                `);
+            });
 
             if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
 
@@ -288,7 +449,13 @@ function inicializarMonitoramento(empresaIdCliente) {
                 var paradasEncontradas = [];
                 Object.keys(veiculos[vID].historico).forEach(ch => {
                     var p = veiculos[vID].historico[ch];
-                    pontosBrutos.push([p.lat, p.lon]);
+                    pontosBrutos.push({
+                        lat: p.lat,
+                        lon: p.lon,
+                        velocidade: p.velocidade || 0,
+                        hora: p.hora,
+                        timestamp: p.timestamp || null
+                    });
                     if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
                         paradasEncontradas.push(p);
                     }
@@ -299,13 +466,24 @@ function inicializarMonitoramento(empresaIdCliente) {
 
                 paradasEncontradas.slice(-3).forEach(pStop => {
                     var mStop = L.marker([pStop.lat, pStop.lon], { icon: L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18] }) }).addTo(map);
+                    var dataHoraParada = formatarDataHora(pStop.timestamp, pStop.hora);
+                    mStop.bindPopup(`
+                        <div class="popup-ponto">
+                            <b>Parada de:</b> ${vID}<br>
+                            <b>Data/Hora:</b> ${dataHoraParada}<br>
+                            <b>Rua:</b> ${pStop.rua}<br>
+                            <b>Bairro:</b> ${pStop.bairro || '—'}<br>
+                            <b>Cidade:</b> ${pStop.cidade || '—'}<br>
+                            <b>UF:</b> ${pStop.uf || '—'}
+                        </div>
+                    `);
                     marcadoresParadas[vID].push(mStop);
-                    htmlParadasTimeline += `<div class="stop-item">⏱️ ${pStop.hora} - 📍 ${pStop.rua}, ${pStop.bairro}</div>`;
+                    htmlParadasTimeline += `<div class="stop-item">⏱️ ${dataHoraParada} - 📍 ${pStop.rua}, ${pStop.bairro || ''}</div>`;
                 });
 
                 if (ultimosPontosContados[vID] !== pontosBrutos.length) {
                     ultimosPontosContados[vID] = pontosBrutos.length;
-                    desenhoRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
+                    desenhoRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID]);
                 }
             }
 
