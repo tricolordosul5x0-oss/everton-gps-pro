@@ -2,204 +2,107 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>Everton GPS PRO — Painel Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Admin - Everton GPS PRO</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
     <style>
-        /* ============ TOKENS (mesmos do app principal) ============ */
         :root {
             --bg-void: #0a0d12;
             --bg-panel: #131820;
             --bg-raised: #1a212b;
             --border: rgba(255,255,255,.08);
-            --border-soft: rgba(255,255,255,.05);
-
             --signal: #00ffa6;
-            --signal-dim: rgba(0,255,166,.16);
             --telemetry: #2dd4ff;
-            --telemetry-dim: rgba(45,212,255,.14);
-            --amber: #ffb020;
-            --amber-dim: rgba(255,176,32,.14);
             --danger: #ff5470;
-            --danger-dim: rgba(255,84,112,.14);
-
+            --amber: #ffb020;
             --ink-100: #eef2f6;
-            --ink-200: #c7d0db;
             --ink-500: #74808f;
-            --ink-700: #46505c;
-
-            --radius-lg: 14px;
-            --radius-md: 10px;
-            --radius-sm: 7px;
-            --mono: 'SF Mono','Roboto Mono','Consolas',ui-monospace,monospace;
-            --sans: -apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
-        }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        @media (prefers-reduced-motion: reduce) {
-            *, *::before, *::after { animation-duration:.001ms !important; transition-duration:.001ms !important; }
+            --sans: -apple-system,'Segoe UI',Roboto,sans-serif;
+            --mono: monospace;
         }
         body {
-            margin:0; padding:12px; padding-bottom:28px;
-            background:
-                radial-gradient(circle at 12% 0%, rgba(0,255,166,.05), transparent 40%),
-                radial-gradient(circle at 90% 10%, rgba(45,212,255,.04), transparent 45%),
-                var(--bg-void);
-            color:var(--ink-200); font-family:var(--sans);
-            max-width:760px; margin-inline:auto;
+            margin: 0; padding: 0;
+            font-family: var(--sans);
+            background-color: var(--bg-void);
+            color: var(--ink-100);
+            display: flex; height: 100vh;
+        }
+        
+        #sidebar {
+            width: 340px; background: var(--bg-panel);
+            border-right: 1px solid var(--border);
+            display: flex; flex-direction: column; z-index: 10;
+            flex-shrink: 0;
+        }
+        .sidebar-header {
+            padding: 16px; background: var(--bg-raised);
+            border-bottom: 1px solid var(--border);
+        }
+        .sidebar-header h2 { margin: 0; font-size: 1.2em; color: var(--signal); }
+        .sidebar-header span { font-size: 0.75em; color: var(--ink-500); font-family: var(--mono); }
+        
+        #listaVeiculos { flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .card-veiculo {
+            background: var(--bg-raised); border: 1px solid var(--border);
+            border-radius: 8px; padding: 12px; cursor: pointer; transition: 0.2s;
+        }
+        .card-veiculo:hover { border-color: var(--telemetry); }
+        .card-title { display: flex; justify-content: space-between; font-weight: bold; font-size: 0.95em; }
+        
+        .card-status { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; background: rgba(0,255,166,0.1); color: var(--signal); font-weight: bold; }
+        .card-status.parado { background: rgba(255,84,112,0.1); color: var(--danger); }
+        
+        .card-body { font-size: 0.78em; color: var(--ink-500); margin-top: 6px; line-height: 1.4; }
+        .card-body b { color: var(--ink-100); }
+
+        /* Container de paradas dentro do card */
+        .stops-timeline {
+            margin-top: 10px; padding-top: 8px;
+            border-top: 1px dashed var(--border);
+        }
+        .stops-title { font-size: 0.72em; color: var(--amber); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; display: block;}
+        .stop-item { font-size: 0.72em; color: var(--ink-200); padding: 3px 0; display: flex; flex-direction: column; gap: 1px; }
+        .stop-item i { color: var(--ink-500); font-style: normal; font-family: var(--mono); }
+
+        #map { flex: 1; height: 100%; background: var(--bg-void); }
+
+        /* Pins Customizados */
+        .pin-parado {
+            background-color: var(--danger); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(255,84,112,0.6);
+        }
+        .pin-movimento {
+            background-color: var(--signal); border: 2px solid white; border-radius: 50%; box-shadow: 0 0 8px rgba(0,255,166,0.6);
+        }
+        .pin-historico-parada {
+            background-color: var(--amber); border: 1.5px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 8px; font-weight: bold; color: black;
         }
 
-        header { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:14px 16px; margin-bottom:10px; }
-        .brand-row { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
-        .brand { display:flex; align-items:center; gap:10px; }
-        .brand-mark { width:34px; height:34px; border-radius:9px; flex:none; background:linear-gradient(145deg, var(--signal-dim), var(--telemetry-dim)); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:1.05em; }
-        .brand-text h1 { margin:0; font-size:1em; letter-spacing:.5px; color:var(--ink-100); font-weight:700; }
-        .brand-text span { font-size:.68em; color:var(--telemetry); font-family:var(--mono); letter-spacing:1.2px; }
-        .admin-tag { font-size:.62em; font-family:var(--mono); color:var(--amber); border:1px solid rgba(255,176,32,.4); background:var(--amber-dim); padding:4px 9px; border-radius:6px; letter-spacing:.8px; }
-
-        .panel { background:var(--bg-panel); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 14px 14px; position:relative; margin-bottom:10px; }
-        .panel-tag { position:absolute; top:-9px; left:12px; background:var(--bg-raised); padding:2px 9px; font-size:.62em; color:var(--signal); border:1px solid var(--border); border-radius:5px; font-family:var(--mono); letter-spacing:.8px; }
-
-        .field-label { font-size:.66em; color:var(--ink-500); text-transform:uppercase; letter-spacing:.8px; font-family:var(--mono); margin-bottom:5px; display:block; }
-        input[type="text"], input[type="date"], input[type="time"], select {
-            padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-raised);
-            color:var(--ink-100); font-size:.92em; font-family:var(--mono); width:100%;
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            #sidebar { width: 100%; height: 45vh; border-right: none; border-bottom: 1px solid var(--border); }
+            #map { width: 100%; height: 55vh; }
         }
-        input::placeholder { color:var(--ink-700); }
-
-        .grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-        .field-block { margin-bottom:10px; }
-
-        .chips-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
-        .veic-chip { font-family:var(--mono); font-size:.72em; padding:5px 10px; border-radius:20px; background:var(--bg-raised); border:1px solid var(--border); color:var(--telemetry); cursor:pointer; }
-        .veic-chip:active { border-color:var(--telemetry); }
-        .chips-hint { font-size:.68em; color:var(--ink-700); font-family:var(--mono); margin-top:4px; }
-
-        button.btn-primary {
-            width:100%; padding:14px; border:none; border-radius:var(--radius-md); font-weight:700; cursor:pointer; font-size:.95em; letter-spacing:1px;
-            background:linear-gradient(135deg,#00ffa6,#2dd4ff); color:#021410;
-            box-shadow:0 8px 20px -8px rgba(0,255,166,.45); margin-top:4px;
-        }
-        button.btn-primary:active { transform:scale(.985); }
-        button.btn-secondary {
-            width:100%; padding:11px; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-raised);
-            color:var(--ink-200); cursor:pointer; font-size:.85em; font-family:var(--mono); margin-top:8px;
-        }
-        button.btn-secondary[disabled] { opacity:.4; cursor:not-allowed; }
-
-        /* ============ MAPA ============ */
-        .map-wrapper { position:relative; border-radius:var(--radius-lg); overflow:hidden; border:1px solid var(--border); margin-bottom:10px; }
-        #map { height:320px; width:100%; background:var(--bg-raised); z-index:1; }
-
-        /* ============ STATS ============ */
-        .stats-grid { display:flex; flex-wrap:wrap; gap:8px; }
-        .stat-card { background:var(--bg-raised); border-radius:var(--radius-md); padding:11px 13px; border:1px solid var(--border-soft); flex:1 1 calc(33.33% - 6px); min-width:100px; }
-        .stat-label { font-size:.6em; color:var(--ink-500); text-transform:uppercase; font-family:var(--mono); letter-spacing:.5px; }
-        .stat-value { font-size:1.25em; font-weight:700; color:var(--signal); line-height:1.3; }
-        .stat-unit { font-size:.58em; color:var(--ink-700); font-family:var(--mono); }
-
-        /* ============ LISTA DE PONTOS ============ */
-        #listaPontos { max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:6px; }
-        .dia-separador { font-family:var(--mono); font-size:.68em; color:var(--ink-500); letter-spacing:.8px; text-transform:uppercase; padding:8px 2px 2px; border-top:1px dashed var(--border-soft); margin-top:4px; }
-        .dia-separador:first-child { border-top:none; margin-top:0; }
-        .hist-item { background:var(--bg-raised); border:1px solid var(--border-soft); border-radius:var(--radius-sm); padding:10px 12px; font-size:.8em; cursor:pointer; }
-        .hist-item:active { border-color:var(--telemetry); }
-        .hist-item .hr { color:var(--ink-100); font-weight:700; font-family:var(--mono); }
-        .hist-item .vel { color:var(--ink-500); }
-        .hist-item .addr { color:var(--telemetry); display:block; margin-top:3px; }
-        .hint { color:var(--ink-500); padding:14px; text-align:center; font-size:.82em; font-family:var(--mono); }
-        .erro { color:var(--danger); background:var(--danger-dim); border:1px solid rgba(255,84,112,.35); border-radius:var(--radius-sm); padding:12px; text-align:center; font-size:.82em; }
-
-        footer.app-foot { text-align:center; font-size:.65em; color:var(--ink-700); font-family:var(--mono); margin-top:14px; letter-spacing:.4px; }
-
-        .snap-status { font-size:.7em; font-family:var(--mono); color:var(--ink-500); text-align:center; margin:6px 0 10px; min-height:14px; }
-        .snap-status.ok { color:var(--signal); }
-        .snap-status.warn { color:var(--amber); }
-
-        @media (max-width:480px){ .grid-2 { grid-template-columns:1fr; } .stat-card { flex:1 1 calc(50% - 4px); } }
     </style>
 </head>
 <body>
 
-<header>
-    <div class="brand-row">
-        <div class="brand">
-            <div class="brand-mark">🛰</div>
-            <div class="brand-text">
-                <h1>Everton GPS PRO</h1>
-                <span>PAINEL ADMIN · CONSULTA DE ROTAS</span>
-            </div>
-        </div>
-        <span class="admin-tag">SOMENTE LEITURA</span>
+<div id="sidebar">
+    <div class="sidebar-header">
+        <h2>Everton GPS Admin</h2>
+        <span id="contadorFrota">Monitorando: 0 veículos</span>
     </div>
-</header>
-
-<div class="panel">
-    <span class="panel-tag">FILTROS</span>
-
-    <div class="field-block">
-        <span class="field-label">Veículo</span>
-        <input type="text" id="veiculoID" value="VEICULO-01" placeholder="ID do veículo">
-        <div class="chips-row" id="chipsVeiculos"></div>
-        <div class="chips-hint">Toque em um ID para selecioná-lo</div>
-    </div>
-
-    <div class="grid-2">
-        <div class="field-block">
-            <span class="field-label">Data início</span>
-            <input type="date" id="dataInicio">
+    <div id="listaVeiculos">
         </div>
-        <div class="field-block">
-            <span class="field-label">Data fim</span>
-            <input type="date" id="dataFim">
-        </div>
-    </div>
-    <div class="grid-2">
-        <div class="field-block">
-            <span class="field-label">Hora início</span>
-            <input type="time" id="horaInicio" value="00:00">
-        </div>
-        <div class="field-block">
-            <span class="field-label">Hora fim</span>
-            <input type="time" id="horaFim" value="23:59">
-        </div>
-    </div>
-
-    <button class="btn-primary" onclick="buscarRotas()">🔍 BUSCAR ROTA NO PERÍODO</button>
 </div>
 
-<div class="panel" id="statsPanel" style="display:none">
-    <span class="panel-tag">RESUMO DO TRAJETO</span>
-    <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Pontos</div><div class="stat-value" id="statPontos">0</div><div class="stat-unit">REGISTROS</div></div>
-        <div class="stat-card"><div class="stat-label">Distância</div><div class="stat-value" id="statDist">0</div><div class="stat-unit">KM</div></div>
-        <div class="stat-card"><div class="stat-label">Vel. média</div><div class="stat-value" id="statVelMed">0</div><div class="stat-unit">KM/H</div></div>
-        <div class="stat-card"><div class="stat-label">Vel. máxima</div><div class="stat-value" id="statVelMax">0</div><div class="stat-unit">KM/H</div></div>
-        <div class="stat-card"><div class="stat-label">Duração</div><div class="stat-value" id="statDuracao" style="font-size:1em">—</div><div class="stat-unit">PERÍODO</div></div>
-        <div class="stat-card"><div class="stat-label">Período</div><div class="stat-value" id="statPeriodo" style="font-size:.78em; color:var(--ink-100)">—</div></div>
-    </div>
-</div>
-
-<div class="map-wrapper">
-    <div id="map"></div>
-</div>
-<div class="snap-status" id="snapStatus"></div>
-
-<div class="panel">
-    <span class="panel-tag">TRAJETO DETALHADO · RUA / BAIRRO / CIDADE</span>
-    <div id="listaPontos"><div class="hint">Escolha um veículo e um período, depois toque em "Buscar rota".</div></div>
-    <button class="btn-secondary" id="btnExportar" onclick="exportarCSV()" disabled>⬇ EXPORTAR CSV</button>
-</div>
-
-<footer class="app-foot">EVERTON GPS PRO · PAINEL ADMINISTRATIVO · DADOS SOMENTE LEITURA</footer>
+<div id="map"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
 <script>
-/* ============================================================
-   Configuração do Firebase
-   ============================================================ */
+// Configuração do Firebase
 var firebaseConfig = {
     apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
     authDomain: "everton-gps.firebaseapp.com",
@@ -212,266 +115,178 @@ var firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 
-var map = L.map('map', { zoomControl:true, attributionControl:false }).setView([-29.6133,-52.1919], 13);
-L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom:19 }).addTo(map);
+var map = L.map('map', { zoomControl: true, attributionControl: false }).setView([-29.6133, -52.1919], 13);
+L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-var camadaRotaBruta = null;   
-var camadasSnap = [];         
-var marcadores = [];
-var ultimaConsulta = [];
-var ultimoVeiculo = '';
+var marcadoresAtivos = {};
+var linhasTrajeto = {};
+var marcadoresParadas = {}; // Guarda os pins fixos de parada no mapa
+var ultimosPontosContados = {}; 
 
-function distanciaMetros(p1, p2) {
-    var R = 6371000;
-    var dLat = (p2[0]-p1[0]) * Math.PI/180;
-    var dLon = (p2[1]-p1[1]) * Math.PI/180;
-    var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(p1[0]*Math.PI/180)*Math.cos(p2[0]*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
-    return R * 2*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7', '#3b82f6'];
+var indiceCor = 0;
+
+function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length]; }
+var coresAtribuidas = {};
+
+/* =========================================================
+   SNAP TO ROADS (ROTEAMENTO PREFEITO NAS RUAS)
+   ========================================================= */
+function desenharRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
+    if (coordenadasBrutas.length < 2) return;
+    var pontosOtimizados = coordenadasBrutas.slice(-50);
+    var stringCoordenadas = pontosOtimizados.map(function(p) { return p[1] + ',' + p[0]; }).join(';');
+    var url = 'https://router.project-osrm.org/route/v1/driving/' + stringCoordenadas + '?overview=full&geometries=geojson';
+
+    fetch(url).then(function(res) { return res.json(); }).then(function(data) {
+        if (data.code === 'Ok' && data.routes && data.routes[0]) {
+            var coordenadasRuas = data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
+            if (linhasTrajeto[vID]) {
+                linhasTrajeto[vID].setLatLngs(coordenadasRuas);
+            } else {
+                linhasTrajeto[vID] = L.polyline(coordenadasRuas, { color: cor, weight: 5, opacity: 0.85 }).addTo(map);
+            }
+        } else {
+            desenharLinhaDireta(vID, coordenadasBrutas, cor);
+        }
+    }).catch(function() { desenharLinhaDireta(vID, coordenadasBrutas, cor); });
 }
 
-function formatarDuracao(ms) {
-    var min = Math.max(0, Math.round(ms/60000));
-    var h = Math.floor(min/60), m = min%60;
-    return h > 0 ? (h+'h '+m+'min') : (m+'min');
-}
-function formatarDataBR(iso) {
-    var p = iso.split('-');
-    return p[2]+'/'+p[1]+'/'+p[0];
+function desenharLinhaDireta(vID, coordenadas, cor) {
+    if (linhasTrajeto[vID]) { linhasTrajeto[vID].setLatLngs(coordenadas); }
+    else { linhasTrajeto[vID] = L.polyline(coordenadas, { color: cor, weight: 4, opacity: 0.7 }).addTo(map); }
 }
 
-function limparCamadaBruta() { if (camadaRotaBruta) { map.removeLayer(camadaRotaBruta); camadaRotaBruta = null; } }
-function limparCamadasSnap() { camadasSnap.forEach(function(c) { map.removeLayer(c); }); camadasSnap = []; }
-
-/* ============================================================
-   Ajuste definitivo à malha viária usando o motor do OSRM 
-   corrigido com tolerância ampliada de raio para colar nas ruas.
-   ============================================================ */
-function ajustarRotaAsRuas(pontos) {
-    var status = document.getElementById('snapStatus');
-    status.className = 'snap-status';
-
-    if (pontos.length < 2) { status.textContent = ''; return; }
-    status.textContent = '⏳ Fixando linha milimetricamente sobre as ruas...';
-
-    // Limpa coordenadas duplicadas e ruídos de veículo parado para não confundir o alinhamento
-    var filtrados = [];
-    for (var i = 0; i < pontos.length; i++) {
-        if (i === 0) { filtrados.push(pontos[i]); continue; }
-        var d = distanciaMetros([pontos[i-1].lat, pontos[i-1].lon], [pontos[i].lat, pontos[i].lon]);
-        if (d > 1) { filtrados.push(pontos[i]); }
-    }
-    if (filtrados.length < 2) filtrados = pontos;
-
-    // Divide em blocos menores para contornar o limite rígido de curvas do servidor público
-    var TAM_CHUNK = 60;
-    var promises = [];
-
-    for (var j = 0; j < filtrados.length; j += (TAM_CHUNK - 1)) {
-        var chunk = filtrados.slice(j, Math.min(j + TAM_CHUNK, filtrados.length));
-        if (chunk.length < 2) break;
-
-        var coordsStr = chunk.map(function(p) { return p.lon.toFixed(6) + ',' + p.lat.toFixed(6); }).join(';');
-        // radiuses=50 garante que o motor encontre a rua correta num raio de 50m, evitando que a linha corte caminho em diagonal
-        var radStr = chunk.map(function() { return '50'; }).join(';'); 
-        
-        var url = 'https://router.project-osrm.org/route/v1/driving/' + coordsStr + 
-                  '?overview=full&geometries=geojson&radiuses=' + radStr;
-        
-        promises.push(
-            fetch(url)
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.code === 'Ok' && data.routes && data.routes[0]) {
-                    return data.routes[0].geometry.coordinates.map(function(c) { return [c[1], c[0]]; });
-                }
-                throw new Error();
-            })
-            .catch(function() {
-                // Se um bloco falhar na rua, usa as coordenadas brutas daquele trecho específico para manter a continuidade verde
-                return chunk.map(function(p) { return [p.lat, p.lon]; });
-            })
-        );
-    }
-
-    Promise.all(promises).then(function(resultados) {
-        limparCamadaBruta();
-        limparCamadasSnap();
-        
-        resultados.forEach(function(coordsSegmento) {
-            // Desenha a linha verde viva (#00ffa6) colada na rua, com espessura forte e sem transparência
-            var linha = L.polyline(coordsSegmento, { 
-                color: '#00ffa6', 
-                weight: 6, 
-                opacity: 1.0,
-                lineJoin: 'round'
-            }).addTo(map);
-            camadasSnap.push(linha);
-        });
-
-        status.textContent = '✓ Trajeto completamente alinhado com as ruas';
-        status.className = 'snap-status ok';
-    });
-}
-
-/* ============================================================
-   Lista de veículos já vistos no banco (atalho de seleção)
-   ============================================================ */
-function carregarVeiculosConhecidos() {
-    db.ref('veiculos').once('value').then(function(snap) {
-        var cont = document.getElementById('chipsVeiculos');
-        cont.innerHTML = '';
-        snap.forEach(function(child) {
-            var chip = document.createElement('span');
-            chip.className = 'veic-chip';
-            chip.textContent = child.key;
-            chip.onclick = function() { document.getElementById('veiculoID').value = child.key; };
-            cont.appendChild(chip);
-        });
-    }).catch(function() {});
-}
-
-function definirPeriodoPadrao() {
-    var hoje = new Date().toISOString().slice(0,10);
-    document.getElementById('dataInicio').value = hoje;
-    document.getElementById('dataFim').value = hoje;
-}
-
-/* ============================================================
-   Consulta principal
-   ============================================================ */
-function buscarRotas() {
-    var vID = document.getElementById('veiculoID').value.trim() || 'VEICULO-01';
-    var dIni = document.getElementById('dataInicio').value;
-    var dFim = document.getElementById('dataFim').value || dIni;
-    var hIni = document.getElementById('horaInicio').value || '00:00';
-    var hFim = document.getElementById('horaFim').value || '23:59';
-
-    if (!dIni) { alert('Selecione a data início.'); return; }
-
-    var tsInicio = new Date(dIni + 'T' + hIni + ':00').getTime();
-    var tsFim = new Date(dFim + 'T' + hFim + ':59').getTime();
-
-    document.getElementById('listaPontos').innerHTML = '<div class="hint">Buscando registros...</div>';
-    document.getElementById('statsPanel').style.display = 'none';
-    document.getElementById('btnExportar').disabled = true;
-
-    db.ref('veiculos/' + vID + '/historico')
-      .orderByChild('timestamp').startAt(tsInicio).endAt(tsFim)
-      .once('value', function(snap) {
-          var pontos = [];
-          snap.forEach(function(child) { pontos.push(child.val()); });
-          pontos.sort(function(a,b) { return a.timestamp - b.timestamp; });
-          ultimaConsulta = pontos;
-          ultimoVeiculo = vID;
-          renderizarResultados(pontos);
-      }, function(err) {
-          document.getElementById('listaPontos').innerHTML = '<div class="erro">Erro ao consultar o banco: ' + err.message + '</div>';
-      });
-}
-
-function renderizarResultados(pontos) {
-    var lista = document.getElementById('listaPontos');
-    lista.innerHTML = '';
-
-    limparCamadaBruta();
-    limparCamadasSnap();
-    document.getElementById('snapStatus').textContent = '';
-    document.getElementById('snapStatus').className = 'snap-status';
-    marcadores.forEach(function(m) { map.removeLayer(m); });
-    marcadores = [];
-
-    if (pontos.length === 0) {
-        lista.innerHTML = '<div class="erro">Nenhum registro encontrado para este veículo no período selecionado.</div>';
-        document.getElementById('statsPanel').style.display = 'none';
-        document.getElementById('btnExportar').disabled = true;
+/* =========================================================
+   MONITORAMENTO EM TEMPO REAL + DETECÇÃO COMPLETA DE PARADAS
+   ========================================================= */
+db.ref('veiculos').on('value', function(snapshot) {
+    var veiculos = snapshot.val();
+    var listaContainer = document.getElementById('listaVeiculos');
+    
+    if (!veiculos) {
+        listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px;">Nenhum veículo ativo.</div>';
+        document.getElementById('contadorFrota').textContent = "Monitorando: 0 veículos";
         return;
     }
 
-    /* --- estatísticas --- */
-    var distTotal = 0, velMax = 0, somaVel = 0;
-    for (var i = 0; i < pontos.length; i++) {
-        var v = parseFloat(pontos[i].velocidade) || 0;
-        if (v > velMax) velMax = v;
-        somaVel += v;
-        if (i > 0) distTotal += distanciaMetros(
-            [pontos[i-1].lat, pontos[i-1].lon],
-            [pontos[i].lat, pontos[i].lon]
-        );
-    }
-    var velMedia = (somaVel / pontos.length).toFixed(1);
-    var duracaoMs = pontos[pontos.length-1].timestamp - pontos[0].timestamp;
+    document.getElementById('contadorFrota').textContent = "Monitorando: " + Object.keys(veiculos).length + " veículo(s)";
+    listaContainer.innerHTML = "";
 
-    document.getElementById('statPontos').textContent = pontos.length;
-    document.getElementById('statDist').textContent = (distTotal/1000).toFixed(2);
-    document.getElementById('statVelMed').textContent = velMedia;
-    document.getElementById('statVelMax').textContent = velMax;
-    document.getElementById('statDuracao').textContent = formatarDuracao(duracaoMs);
-    document.getElementById('statPeriodo').textContent = pontos[0].hora + ' – ' + pontos[pontos.length-1].hora;
-    document.getElementById('statsPanel').style.display = 'block';
-    document.getElementById('btnExportar').disabled = false;
+    // Inicializa contêiner de marcadores de paradas para este ciclo se não existir
+    Object.keys(veiculos).forEach(function(vID) {
+        var dadosAtual = veiculos[vID].atual;
+        if (!dadosAtual) return;
 
-    var coords = pontos.map(function(p) { return [p.lat, p.lon]; });
-    
-    // Rota base verde que serve de garantia enquanto carrega o alinhamento
-    camadaRotaBruta = L.polyline(coords, { color:'#00ffa6', weight:4, opacity:0.6 }).addTo(map);
+        var lat = dadosAtual.lat;
+        var lon = dadosAtual.lon;
+        var vel = parseFloat(dadosAtual.velocidade || 0);
+        var enderecoCompleto = dadosAtual.endereco || "Buscando endereço...";
+        var hora = dadosAtual.hora || "--:--";
 
-    var marcaInicio = L.circleMarker(coords[0], { radius:8, color:'#00ffa6', weight:2, fillColor:'#00ffa6', fillOpacity:1 })
-        .addTo(map).bindPopup('🟢 Início — ' + pontos[0].hora);
-    var marcaFim = L.circleMarker(coords[coords.length-1], { radius:8, color:'#ff5470', weight:2, fillColor:'#ff5470', fillOpacity:1 })
-        .addTo(map).bindPopup('🔴 Fim — ' + pontos[pontos.length-1].hora);
-    marcadores.push(marcaInicio, marcaFim);
-    map.fitBounds(camadaRotaBruta.getBounds(), { padding:[26,26] });
+        var estaParado = vel <= 2; 
+        var statusTexto = estaParado ? "🛑 PARADO" : "⚡ EM MOVIMENTO";
+        var classeStatus = estaParado ? "card-status parado" : "card-status";
+        
+        var iconClass = estaParado ? 'pin-parado' : 'pin-movimento';
+        var customIcon = L.divIcon({ className: iconClass, iconSize: [16, 16], iconAnchor: [8, 8] });
 
-    ajustarRotaAsRuas(pontos);
-
-    /* --- lista detalhada --- */
-    var diaAtual = null;
-    pontos.forEach(function(p) {
-        if (p.dataISO !== diaAtual) {
-            diaAtual = p.dataISO;
-            var sep = document.createElement('div');
-            sep.className = 'dia-separador';
-            sep.textContent = formatarDataBR(diaAtual);
-            lista.appendChild(sep);
+        // 1. MARCADOR ATUAL
+        if (marcadoresAtivos[vID]) {
+            marcadoresAtivos[vID].setLatLng([lat, lon]);
+            marcadoresAtivos[vID].setIcon(customIcon);
+            marcadoresAtivos[vID].getPopup().setContent('<b>' + vID + '</b><br>' + statusTexto + '<br>Velocidade: ' + vel + ' km/h');
+        } else {
+            marcadoresAtivos[vID] = L.marker([lat, lon], { icon: customIcon }).addTo(map)
+                .bindPopup('<b>' + vID + '</b><br>' + statusTexto + '<br>Velocidade: ' + vel + ' km/h');
         }
-        var endereco = p.endereco
-            ? p.endereco
-            : (p.rua ? (p.rua + ' - ' + p.bairro + ' - ' + p.cidade) : ('Lat ' + p.lat.toFixed(4) + ', Lon ' + p.lon.toFixed(4)));
 
-        var item = document.createElement('div');
-        item.className = 'hist-item';
-        item.innerHTML = '<span class="hr">' + p.hora + '</span> <span class="vel">— ' + p.velocidade + ' km/h</span>' +
-                          '<span class="addr">📍 ' + endereco + '</span>';
-        item.onclick = function() { map.flyTo([p.lat, p.lon], 17); };
-        lista.appendChild(item);
+        if (!coresAtribuidas[vID]) coresAtribuidas[vID] = obterCorVeiculo();
+
+        // 2. FILTRAR PARADAS NO HISTÓRICO & PLOTAR MARCADORES (🛑)
+        var htmlParadasTimeline = "";
+        if (!marcadoresParadas[vID]) marcadoresParadas[vID] = [];
+
+        if (veiculos[vID].historico) {
+            var pontosBrutos = [];
+            var dadosHistorico = veiculos[vID].historico;
+            var paradasEncontradas = [];
+
+            Object.keys(dadosHistorico).forEach(function(chave) {
+                var p = dadosHistorico[chave];
+                if (p.lat && p.lon) {
+                    pontosBrutos.push([p.lat, p.lon]);
+                    
+                    // Identifica se o ponto registrado no histórico era uma parada clara (Velocidade = 0)
+                    if (parseFloat(p.velocidade || 0) === 0 && p.rua) {
+                        // Evita duplicar paradas seguidas na mesma rua no mesmo minuto
+                        var ultimaParada = paradasEncontradas[paradasEncontradas.length - 1];
+                        if (!ultimaParada || ultimaParada.rua !== p.rua || ultimaParada.hora.slice(0,5) !== p.hora.slice(0,5)) {
+                            paradasEncontradas.push(p);
+                        }
+                    }
+                }
+            });
+
+            // Limpa pins de paradas antigas do mapa para este veículo antes de redesenhar
+            marcadoresParadas[vID].forEach(function(m) { map.removeLayer(m); });
+            marcadoresParadas[vID] = [];
+
+            // Desenha os novos pins de parada encontrados
+            paradasEncontradas.slice(-4).forEach(function(pStop) {
+                var iconStop = L.divIcon({ className: 'pin-historico-parada', html: '🛑', iconSize: [18, 18], iconAnchor: [9, 9] });
+                var mStop = L.marker([pStop.lat, pStop.lon], { icon: iconStop }).addTo(map)
+                    .bindPopup(`<b>🛑 Parada de ${vID}</b><br><b>Hora:</b> ${pStop.hora}<br><b>Local:</b> ${pStop.endereco}`);
+                
+                marcadoresParadas[vID].push(mStop);
+
+                // Monta o texto que vai para a barra lateral do admin
+                htmlParadasTimeline += `
+                    <div class="stop-item" onclick="event.stopPropagation(); map.flyTo([${pStop.lat}, ${pStop.lon}], 18);">
+                        <i>⏱️ ${pStop.hora}</i>
+                        <span>📍 ${pStop.rua ? pStop.rua : 'Via principal'} - ${pStop.bairro}, ${pStop.cidade}</span>
+                    </div>
+                `;
+            });
+
+            // Desenha a linha sobreposta à malha de ruas
+            if (ultimosPontosContados[vID] !== pontosBrutos.length) {
+                ultimosPontosContados[vID] = pontosBrutos.length;
+                desenharRotaNasRuas(vID, pontosBrutos, coresAtribuidas[vID], estaParado);
+            }
+        }
+
+        // 3. RENDERIZAR CARD COMPLETO NA BARRA LATERAL
+        var card = document.createElement('div');
+        card.className = 'card-veiculo';
+        card.style.borderLeft = "5px solid " + coresAtribuidas[vID];
+
+        card.innerHTML = `
+            <div class="card-title">
+                <span>🚗 ${vID}</span>
+                <span class="${classeStatus}">${statusTexto}</span>
+            </div>
+            <div class="card-body">
+                <b>Velocidade:</b> ${vel} km/h<br>
+                <b>Último Sinal:</b> ${hora}<br>
+                <b>Posição Atual:</b> ${enderecoCompleto}
+            </div>
+            ${htmlParadasTimeline ? `
+                <div class="stops-timeline">
+                    <span class="stops-title">📍 Últimas Paradas Registradas:</span>
+                    ${htmlParadasTimeline}
+                </div>
+            ` : ''}
+        `;
+        
+        card.onclick = function() {
+            map.flyTo([lat, lon], 17);
+            marcadoresAtivos[vID].openPopup();
+        };
+
+        listaContainer.appendChild(card);
     });
-}
-
-/* ============================================================
-   Exportar CSV da última consulta
-   ============================================================ */
-function exportarCSV() {
-    if (!ultimaConsulta.length) return;
-    var linhas = ['data,hora,rua,bairro,cidade,velocidade_kmh,lat,lon'];
-    ultimaConsulta.forEach(function(p) {
-        var rua = (p.rua || '').replace(/,/g,';');
-        var bairro = (p.bairro || '').replace(/,/g,';');
-        var cidade = (p.cidade || '').replace(/,/g,';');
-        linhas.push([p.dataISO, p.hora, rua, bairro, cidade, p.velocidade, p.lat, p.lon].join(','));
-    });
-    var blob = new Blob([linhas.join('\n')], { type:'text/csv;charset=utf-8;' });
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'rota_' + ultimoVeiculo + '_' + (ultimaConsulta[0].dataISO || 'export') + '.csv';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-carregarVeiculosConhecidos();
-definirPeriodoPadrao();
+});
 </script>
 </body>
 </html>
