@@ -54,7 +54,7 @@
             border: none; padding: 12px; border-radius: 6px; cursor: pointer; transition: 0.2s;
         }
         .btn-login:hover { opacity: 0.9; }
-        #loginErro { color: var(--danger); font-size: 0.8em; margin-top: 10px; text-align: center; }
+        #loginErro { color: var(--danger); font-size: 0.85em; margin-top: 12px; text-align: center; line-height: 1.4; }
 
         /* INTERFACE DO MAPA (SÓ APARECE APÓS LOGAR) */
         #appContainer { display: none; width: 100%; height: 100%; }
@@ -129,7 +129,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
-// Configuração do seu Firebase
+// Configuração Oficial do seu Firebase
 var firebaseConfig = {
     apiKey: "AIzaSyDwKIS8wL3D7OuaysVFWz3D7Oua",
     authDomain: "everton-gps.firebaseapp.com",
@@ -153,7 +153,7 @@ var ultimosPontosContados = {};
 var coresAtribuidas = {};
 var coresRotas = ['#2dd4ff', '#00ffa6', '#ffb020', '#ff5470', '#a855f7'];
 var indiceCor = 0;
-var firebaseListener = null; // Guarda o listener ativo para limpar no logout
+var firebaseListener = null;
 
 function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length]; }
 
@@ -162,33 +162,45 @@ function obterCorVeiculo() { return coresRotas[indiceCor++ % coresRotas.length];
    ========================================================= */
 auth.onAuthStateChanged(function(user) {
     if (user) {
-        // Usuário logado com sucesso!
         document.getElementById('loginOverlay').style.display = 'none';
         document.getElementById('appContainer').style.display = 'flex';
-        map.invalidateSize(); // Força o Leaflet a renderizar o tamanho correto
+        map.invalidateSize();
         
-        // Identifica a empresa usando o e-mail (ex: "cliente@teste.com" vira ID "cliente_teste_com")
+        // Limpa o e-mail criando o identificador único para o filtro do banco
         var empresaIdLimpo = user.email.replace(/[^a-zA-Z0-9]/g, "_");
         
-        // Inicia o monitoramento filtrando APENAS os veículos dessa empresa
         inicializarMonitoramento(empresaIdLimpo);
     } else {
-        // Usuário deslogado
         document.getElementById('loginOverlay').style.display = 'flex';
         document.getElementById('appContainer').style.display = 'none';
-        if (firebaseListener) firebaseListener.off(); // Desliga leituras anteriores
+        if (firebaseListener) firebaseListener.off();
         limparMapaCompleto();
     }
 });
 
 function executarLogin() {
-    var email = document.getElementById('emailInput').value;
+    var email = document.getElementById('emailInput').value.trim();
     var senha = document.getElementById('senhaInput').value;
     var erroDiv = document.getElementById('loginErro');
     erroDiv.textContent = "";
 
+    if(!email || !senha) {
+        erroDiv.textContent = "Por favor, preencha todos os campos.";
+        return;
+    }
+
     auth.signInWithEmailAndPassword(email, senha).catch(function(error) {
-        erroDiv.textContent = "Acesso negado: Usuário ou senha inválidos.";
+        console.error(error);
+        // Alertas detalhados para te ajudar no teste do Acode
+        if (error.code === "auth/wrong-password") {
+            erroDiv.textContent = "Senha incorreta para este usuário.";
+        } else if (error.code === "auth/user-not-found") {
+            erroDiv.textContent = "Este e-mail não está cadastrado no Firebase.";
+        } else if (error.code === "auth/invalid-email") {
+            erroDiv.textContent = "Formato de e-mail inválido.";
+        } else {
+            erroDiv.textContent = "Erro no login: " + error.message;
+        }
     });
 }
 
@@ -223,7 +235,7 @@ function desenharRotaNasRuas(vID, coordenadasBrutas, cor, estaParado) {
 function inicializarMonitoramento(empresaIdCliente) {
     var refVeiculos = db.ref('veiculos');
     
-    // FILTRO COMERCIAL CRUCIAL: Filtra a busca do banco pelo campo "empresaId" do veículo igual ao ID do cliente logado
+    // FILTRO COMERCIAL: Busca apenas nós cujo "atual/empresaId" seja igual ao ID gerado pelo login
     firebaseListener = refVeiculos.orderByChild('atual/empresaId').equalTo(empresaIdCliente);
     
     firebaseListener.on('value', function(snapshot) {
@@ -233,7 +245,7 @@ function inicializarMonitoramento(empresaIdCliente) {
 
         if (!veiculos) {
             document.getElementById('contadorFrota').textContent = "Frota: 0 veículos";
-            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em;">Nenhum veículo vinculado à sua conta.</div>';
+            listaContainer.innerHTML = '<div style="color:var(--ink-500); padding:10px; font-size:0.85em; text-align:center;">Nenhum veículo vinculado a esta conta.<br><br><small>Verifique se o campo "empresaId" no banco possui o valor: <b>' + empresaIdCliente + '</b></small></div>';
             return;
         }
 
