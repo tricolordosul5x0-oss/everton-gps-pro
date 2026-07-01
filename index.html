@@ -262,6 +262,10 @@ var DISTANCIA_MINIMA_MOVIMENTO_M = 20;
 var ultimoPontoRegistrado = historicoCoordenadasLocais.length > 0
     ? historicoCoordenadasLocais[historicoCoordenadasLocais.length - 1]
     : null;
+// Garante que, ao abrir o app, ele sempre busca rua/bairro/cidade/temperatura pelo
+// menos uma vez, mesmo que o último ponto salvo (de uma visita anterior) esteja
+// a menos de 20m — sem isso, reabrir o app no mesmo lugar deixava tudo travado em "—".
+var primeiraLeituraDestaSessao = true;
 
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
     var R = 6371000;
@@ -332,7 +336,8 @@ function iniciarRastreioGps() {
             ? calcularDistanciaMetros(ultimoPontoRegistrado[0], ultimoPontoRegistrado[1], lat, lon)
             : Infinity;
 
-        if (distancia >= DISTANCIA_MINIMA_MOVIMENTO_M) {
+        if (distancia >= DISTANCIA_MINIMA_MOVIMENTO_M || primeiraLeituraDestaSessao) {
+            primeiraLeituraDestaSessao = false;
             ultimoPontoRegistrado = [lat, lon];
 
             historicoCoordenadasLocais.push([lat, lon]);
