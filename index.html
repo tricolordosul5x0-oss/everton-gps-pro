@@ -255,6 +255,29 @@ setInterval(function() {
 }, 1000);
 
 // ===================== CAPTURA DE GPS (FUNCIONA OFFLINE) =====================
+// Distância mínima (em metros) que o veículo precisa se deslocar para que um
+// novo ponto seja gravado na rota/endereço/temperatura. Evita registrar pontos
+// "fantasmas" causados só pelo tremor natural do GPS quando o veículo está parado.
+var DISTANCIA_MINIMA_MOVIMENTO_M = 20;
+var ultimoPontoRegistrado = historicoCoordenadasLocais.length > 0
+    ? historicoCoordenadasLocais[historicoCoordenadasLocais.length - 1]
+    : null;
+
+function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// Só avisa sobre falha de GPS depois de algumas falhas seguidas — uma falha isolada
+// (comum perto de prédios, nuvens, etc.) não deve gerar alarme na tela.
+var errosGpsConsecutivos = 0;
+var LIMITE_ERROS_PARA_AVISO = 4;
+
 function iniciarRastreioGps() {
     if (!checarContextoSeguro()) return;
 
@@ -265,6 +288,7 @@ function iniciarRastreioGps() {
 
     navigator.geolocation.watchPosition(function(position) {
         esconderAvisoGps();
+        errosGpsConsecutivos = 0;
 
         var lat = position.coords.latitude;
         var lon = position.coords.longitude;
@@ -272,6 +296,8 @@ function iniciarRastreioGps() {
         var vel = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0;
         var agora = new Date();
 
+        // O mapa e a telemetria básica sempre mostram a posição mais atual, ao vivo,
+        // mesmo que o veículo esteja parado.
         map.setView([lat, lon], map.getZoom() < 14 ? 16 : map.getZoom());
         marcador.setLatLng([lat, lon]);
         if (precisao) {
@@ -279,21 +305,11 @@ function iniciarRastreioGps() {
             circuloPrecisao.setRadius(precisao);
         }
 
-        historicoCoordenadasLocais.push([lat, lon]);
-        if (historicoCoordenadasLocais.length > 2000) historicoCoordenadasLocais.shift();
-        polilinhaRota.setLatLngs(historicoCoordenadasLocais);
-        agendarEncaixeNasRuas();
-        talvezBuscarTemperatura(lat, lon);
-
         document.getElementById('txtVelocidade').textContent = vel + " km/h";
         document.getElementById('txtData').textContent = agora.toLocaleDateString('pt-BR');
         document.getElementById('txtHora').textContent = agora.toLocaleTimeString('pt-BR');
         document.getElementById('txtPrecisao').textContent = precisao ? `± ${precisao} m` : "—";
         document.getElementById('txtCoords').textContent = `${lat.toFixed(6)}, ${lon.toFixed(6)}`;
-        document.getElementById('txtRua').textContent = "Buscando...";
-        document.getElementById('txtBairro').textContent = "Buscando...";
-        document.getElementById('txtCidade').textContent = "Buscando...";
-        document.getElementById('txtEstado').textContent = "Buscando...";
 
         var situacao = "EM MOVIMENTO";
         var badgeStatus = document.getElementById('badStatus');
@@ -310,37 +326,56 @@ function iniciarRastreioGps() {
             badgeStatus.className = "badge badge-movimento";
         }
 
-        // Cada ponto real capturado entra na fila — nenhum é descartado.
-        filaGeocodificarDepois.push({
-            lat: lat, lon: lon, velocidade: vel, status: situacao,
-            tempoParado: document.getElementById('txtTempoParado').textContent,
-            hora: agora.toLocaleTimeString('pt-BR'),
-            data: agora.toLocaleDateString('pt-BR'),
-            ts: agora.getTime()
-        });
-        salvarTudo();
-        atualizarInterfaceEstado();
+        // A partir daqui, só grava/consulta endereço/temperatura/rota se houve
+        // deslocamento real desde o último ponto gravado (ou se é o primeiro ponto).
+        var distancia = ultimoPontoRegistrado
+            ? calcularDistanciaMetros(ultimoPontoRegistrado[0], ultimoPontoRegistrado[1], lat, lon)
+            : Infinity;
 
-        processarFilaGeocodificacao();
+        if (distancia >= DISTANCIA_MINIMA_MOVIMENTO_M) {
+            ultimoPontoRegistrado = [lat, lon];
+
+            historicoCoordenadasLocais.push([lat, lon]);
+            if (historicoCoordenadasLocais.length > 2000) historicoCoordenadasLocais.shift();
+            polilinhaRota.setLatLngs(historicoCoordenadasLocais);
+            agendarEncaixeNasRuas();
+            talvezBuscarTemperatura(lat, lon);
+
+            document.getElementById('txtRua').textContent = "Buscando...";
+            document.getElementById('txtBairro').textContent = "Buscando...";
+            document.getElementById('txtCidade').textContent = "Buscando...";
+            document.getElementById('txtEstado').textContent = "Buscando...";
+
+            // Cada ponto real de deslocamento entra na fila — nenhum é descartado.
+            filaGeocodificarDepois.push({
+                lat: lat, lon: lon, velocidade: vel, status: situacao,
+                tempoParado: document.getElementById('txtTempoParado').textContent,
+                hora: agora.toLocaleTimeString('pt-BR'),
+                data: agora.toLocaleDateString('pt-BR'),
+                ts: agora.getTime()
+            });
+            salvarTudo();
+            atualizarInterfaceEstado();
+            processarFilaGeocodificacao();
+        }
 
     }, function(erro) {
         console.error(erro);
-        var msg;
-        switch (erro.code) {
-            case erro.PERMISSION_DENIED:
-                msg = "⚠️ Permissão de localização negada. Ative o GPS nas permissões do navegador/app para este site.";
-                break;
-            case erro.POSITION_UNAVAILABLE:
-                msg = "⚠️ Sinal de GPS indisponível no momento. Tente em área aberta.";
-                break;
-            case erro.TIMEOUT:
-                msg = "⚠️ Tempo esgotado tentando obter localização. Tentando novamente...";
-                break;
-            default:
-                msg = "⚠️ Erro de localização: " + erro.message;
+        errosGpsConsecutivos++;
+
+        // Negação de permissão é grave e deve avisar na hora.
+        // Timeout/sinal indisponível só avisa depois de falhas seguidas de verdade.
+        if (erro.code === erro.PERMISSION_DENIED) {
+            mostrarAvisoGps("⚠️ Permissão de localização negada. Ative o GPS nas permissões do navegador/app para este site.");
+        } else if (errosGpsConsecutivos >= LIMITE_ERROS_PARA_AVISO) {
+            var msg = erro.code === erro.POSITION_UNAVAILABLE
+                ? "⚠️ Sinal de GPS fraco no momento. Tente em área aberta."
+                : "⚠️ Sinal de GPS instável. Tentando novamente...";
+            mostrarAvisoGps(msg);
         }
-        mostrarAvisoGps(msg);
-    }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+        // Falhas isoladas (1 a 3 seguidas) não mostram aviso — o GPS continua tentando sozinho.
+
+    }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
 }
 
 iniciarRastreioGps();
@@ -400,15 +435,19 @@ function talvezBuscarTemperatura(lat, lon) {
     buscandoTemp = true;
     ultimaBuscaTempTs = agora;
 
-    var url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`;
+    var url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature&temperature_unit=celsius&timezone=auto`;
     fetchComTimeout(url, {}, TIMEOUT_FETCH_MS)
         .then(res => {
             if (!res.ok) throw new Error("HTTP " + res.status);
             return res.json();
         })
         .then(data => {
-            if (data && data.current_weather && typeof data.current_weather.temperature === "number") {
-                document.getElementById('txtTemperatura').textContent = data.current_weather.temperature.toFixed(1) + " °C";
+            if (data && data.current && typeof data.current.temperature_2m === "number") {
+                var sensacao = typeof data.current.apparent_temperature === "number"
+                    ? ` (sensação ${data.current.apparent_temperature.toFixed(1)}°C)`
+                    : "";
+                document.getElementById('txtTemperatura').textContent =
+                    data.current.temperature_2m.toFixed(1) + " °C" + sensacao;
             }
         })
         .catch(err => {
