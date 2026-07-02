@@ -134,7 +134,6 @@
 </head>
 <body>
 
-<!-- ===================== TELA DE LOGIN ===================== -->
 <div id="telaLogin">
     <div class="login-box">
         <h1>🛰️ Painel Admin</h1>
@@ -148,7 +147,6 @@
     </div>
 </div>
 
-<!-- ===================== PAINEL PRINCIPAL ===================== -->
 <div id="painel">
     <header>
         <div>
@@ -221,36 +219,30 @@ function fetchComTimeout(url, opcoes, timeoutMs) {
     return fetch(url, Object.assign({}, opcoes, { signal: controller.signal })).finally(() => clearTimeout(id));
 }
 
-// Encaixa uma rota (possivelmente longa) nas ruas reais via OSRM, processando em
-// lotes de até 95 pontos (limite prático do serviço), com 1 ponto de sobreposição
-// entre lotes para a linha final não ter "quebras" entre um lote e o próximo.
+// Encaixa a rota perfeitamente seguindo o traçado das ruas via OSRM Route API
 function encaixarRotaNasRuas(pontosOriginais) {
     if (!pontosOriginais || pontosOriginais.length < 2) {
         return Promise.resolve({ pontos: pontosOriginais || [], sucesso: false, motivo: "Poucos pontos para calcular rota." });
     }
 
-    // Remove pontos praticamente idênticos e consecutivos (comum quando o veículo
-    // fica parado) — isso confunde o encaixe nas ruas e não agrega nada à linha.
+    // Filtra apenas pontos sequenciais idênticos para não confundir a URL
     var pontos = [pontosOriginais[0]];
     for (var k = 1; k < pontosOriginais.length; k++) {
         var anterior = pontos[pontos.length - 1];
         var atual = pontosOriginais[k];
-        var dLat = Math.abs(anterior[0] - atual[0]);
-        var dLon = Math.abs(anterior[1] - atual[1]);
-        if (dLat > 0.00003 || dLon > 0.00003) pontos.push(atual); // ~3m de diferença mínima
+        if (anterior[0] !== atual[0] || anterior[1] !== atual[1]) {
+            pontos.push(atual);
+        }
     }
+
     if (pontos.length < 2) {
-        return Promise.resolve({ pontos: pontosOriginais, sucesso: false, motivo: "Todos os pontos estão praticamente no mesmo lugar." });
+        return Promise.resolve({ pontos: pontosOriginais, sucesso: false, motivo: "Pontos estáticos." });
     }
 
     var totalFolhasOk = 0;
     var totalFolhas = 0;
     var motivosFalha = [];
 
-    // Processa um trecho de pontos. Se o OSRM recusar por ser grande demais
-    // ("TooBig" — comum quando há muitos pontos ou eles estão muito espaçados),
-    // divide o trecho ao meio (com 1 ponto de sobreposição) e tenta cada metade
-    // separadamente, recursivamente, até caber no limite do servidor.
     function processarTrecho(trecho, profundidade) {
         if (trecho.length < 2) {
             totalFolhas++;
@@ -258,42 +250,40 @@ function encaixarRotaNasRuas(pontosOriginais) {
         }
 
         var coordsStr = trecho.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
-        var raios = trecho.map(function() { return 60; }).join(";");
-        var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}?overview=full&geometries=geojson&radiuses=${raios}`;
+        // Mudamos para o serviço de Roteamento (/route/) para forçar a precisão sobre as vias urbanas
+        var url = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=true`;
 
         return fetchComTimeout(url, {}, 9000)
             .then(res => res.json())
             .then(data => {
-                if (data.code === "Ok" && data.matchings && data.matchings.length > 0) {
+                if (data.code === "Ok" && data.routes && data.routes.length > 0) {
                     totalFolhas++;
                     totalFolhasOk++;
                     var pts = [];
-                    data.matchings.forEach(m => m.geometry.coordinates.forEach(c => pts.push([c[1], c[0]])));
+                    data.routes[0].geometry.coordinates.forEach(c => pts.push([c[1], c[0]]));
                     return pts;
                 }
-                if (data.code === "TooBig" && trecho.length > 3 && profundidade < 8) {
+                if ((data.code === "TooBig" || data.code === "NoRoute") && trecho.length > 3 && profundidade < 8) {
                     var meio = Math.ceil(trecho.length / 2);
                     var metade1 = trecho.slice(0, meio);
-                    var metade2 = trecho.slice(meio - 1); // sobreposição de 1 ponto
+                    var metade2 = trecho.slice(meio - 1);
                     return Promise.all([
                         processarTrecho(metade1, profundidade + 1),
                         processarTrecho(metade2, profundidade + 1)
                     ]).then(([r1, r2]) => r1.concat(r2));
                 }
                 totalFolhas++;
-                motivosFalha.push((data && data.code) ? "OSRM: " + data.code : "Resposta inesperada do serviço de rotas");
-                return trecho; // fallback: pontos crus deste trecho
+                motivosFalha.push((data && data.code) ? "OSRM: " + data.code : "Erro no serviço de rotas");
+                return trecho;
             })
             .catch((err) => {
                 totalFolhas++;
-                motivosFalha.push((err && err.name === "AbortError") ? "Tempo esgotado ao contatar o serviço de rotas" : "Falha de rede: " + (err && err.message));
+                motivosFalha.push((err && err.name === "AbortError") ? "Tempo esgotado" : "Falha de rede");
                 return trecho;
             });
     }
 
-    // Trechos iniciais de até 60 pontos (o próprio OSRM/servidor público decide se
-    // aceita ou não — se recusar, a função já sabe se dividir sozinha).
-    var TAMANHO_LOTE_INICIAL = 60;
+    var TAMANHO_LOTE_INICIAL = 40;
     var lotesIniciais = [];
     var i = 0;
     while (i < pontos.length) {
@@ -537,14 +527,10 @@ function selecionarVeiculo(vID) {
         if (marcadores[vID]) marcadores[vID].openPopup();
     }
 
-    // Carrega TODO o histórico do veículo (limite de segurança de 5000 pontos mais
-    // recentes) e acompanha ao vivo — a partir dele, agrupamos por data no cliente.
     if (refHistoricoAtivo) refHistoricoAtivo.off();
     refHistoricoAtivo = db.ref('veiculos/' + vID + '/historico').limitToLast(5000);
     refHistoricoAtivo.on('value', function(snapshot) {
         var dados = snapshot.val() || {};
-        // Object.keys() de um objeto com chaves geradas por push() já vem em ordem
-        // cronológica — não precisa reordenar.
         historicoBrutoAtual = Object.keys(dados)
             .map(function(k) { return dados[k]; })
             .filter(function(p) { return typeof p.lat === "number" && typeof p.lon === "number"; });
@@ -569,7 +555,7 @@ function popularSeletorDeData() {
         return partes[2] + partes[1] + partes[0];
     }
     var listaDatas = Object.keys(datasUnicas).sort(function(a, b) {
-        return paraOrdenacao(b).localeCompare(paraOrdenacao(a)); // mais recente primeiro
+        return paraOrdenacao(b).localeCompare(paraOrdenacao(a));
     });
 
     var select = document.getElementById('seletorData');
@@ -588,7 +574,6 @@ function popularSeletorDeData() {
         select.appendChild(opt);
     });
 
-    // Mantém a seleção do usuário se ainda for válida; senão volta pro "ao vivo"
     if (valorAnterior && (valorAnterior === "AO_VIVO" || listaDatas.indexOf(valorAnterior) >= 0)) {
         select.value = valorAnterior;
         dataSelecionada = valorAnterior;
@@ -631,7 +616,6 @@ function renderizarRotaSelecionada() {
 
     var coords = pontosDoDia.map(function(p) { return [p.lat, p.lon]; });
 
-    // Marcadores de partida e chegada/posição
     var primeiro = pontosDoDia[0];
     var ultimo = pontosDoDia[pontosDoDia.length - 1];
     marcadorPartida = L.marker([primeiro.lat, primeiro.lon], {
@@ -643,8 +627,6 @@ function renderizarRotaSelecionada() {
 
     map.fitBounds(L.latLngBounds(coords), { padding: [40, 40] });
 
-    // Evita condição de corrida: se o usuário trocar de veículo/data enquanto o
-    // OSRM ainda está respondendo, o resultado antigo é descartado.
     var meuToken = ++tokenCarregamentoRota;
     encaixarRotaNasRuas(coords).then(function(resultado) {
         if (meuToken !== tokenCarregamentoRota) return;
@@ -668,7 +650,6 @@ function limparMarcadoresPonta() {
 function renderizarTimeline(pontos) {
     var container = document.getElementById('timelineRota');
     container.innerHTML = "";
-    // Mostra do mais recente para o mais antigo, mais fácil de acompanhar
     var invertido = pontos.slice().reverse();
     invertido.forEach(function(p, idx) {
         var div = document.createElement('div');
