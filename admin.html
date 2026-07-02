@@ -100,12 +100,13 @@
 
         #vazio { padding: 30px 16px; text-align: center; color: var(--text-dim); font-size: 0.85em; }
 
-        /* Painel de detalhe do veículo selecionado (mobile: aparece embaixo do mapa) */
+        /* Painel de detalhe do veículo selecionado */
         #detalheVeiculo {
-            border-top: 1px solid var(--border); padding: 12px 14px; display: none; flex-shrink: 0;
+            border-top: 1px solid var(--border); padding: 12px 14px; display: none; flex-shrink: 0; overflow-y: auto; flex: 1;
         }
         #detalheVeiculo.ativo { display: block; }
-        #detalheVeiculo .linha { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85em; border-bottom: 1px solid rgba(255,255,255,0.04); }
+        #detalheVeiculo .linha { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85em; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 8px; }
+        #detalheVeiculo .linha b, #detalheVeiculo .linha span { text-align: right; word-break: break-all; }
         #detalheVeiculo .linha:last-child { border-bottom: none; }
         #detalheVeiculo button {
             width: 100%; margin-top: 10px; background: #1a212b; border: 1px solid var(--border);
@@ -117,7 +118,8 @@
             padding: 9px; border-radius: 6px; font-size: 0.85em;
         }
         #timelineRota { max-height: 220px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; }
-        .item-timeline { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.78em; display: flex; gap: 8px; }
+        .item-timeline { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.78em; display: flex; gap: 8px; cursor: pointer; transition: background 0.2s; }
+        .item-timeline:hover { background: rgba(255,255,255,0.05); }
         .item-timeline:last-child { border-bottom: none; }
         .item-timeline .hora { color: var(--telemetry); flex-shrink: 0; font-weight: bold; }
         .item-timeline .end { color: var(--text-dim); }
@@ -151,7 +153,7 @@
     <header>
         <div>
             <h1>🛰️ Everton GPS — Painel Admin</h1>
-            <div class="sub" id="statusConexaoAdmin">Conectando ao Firebase...</div>
+            <div class="sub" id="statusConexaoAdmin">Aguardando login seguro...</div>
         </div>
         <button class="btn-sair" id="btnSair">Sair</button>
     </header>
@@ -165,17 +167,22 @@
             </div>
             <div id="contadorFrota">0 veículos</div>
             <div id="listaVeiculosAdmin">
-                <div id="vazio">Nenhum veículo encontrado ainda. Assim que um veículo cadastrado no rastreador enviar dados, ele aparece aqui automaticamente.</div>
+                <div id="vazio">Carregando frota de veículos...</div>
             </div>
             <div id="detalheVeiculo">
                 <div style="font-size:0.75em; color:var(--text-dim); text-transform:uppercase; font-weight:bold; margin-bottom:8px;" id="detalheTitulo">—</div>
                 <div class="linha"><span>Situação</span><span id="detSituacao">—</span></div>
                 <div class="linha"><span>Velocidade</span><b id="detVelocidade">—</b></div>
+                <div class="linha"><span>Precisão GPS</span><b id="detPrecisao">—</b></div>
+                <div class="linha"><span>Tempo de Parada</span><b id="detTempoParado">—</b></div>
+                <div class="linha"><span>Coordenadas</span><b id="detCoords">—</b></div>
                 <div class="linha"><span>Rua</span><b id="detRua">—</b></div>
                 <div class="linha"><span>Bairro</span><b id="detBairro">—</b></div>
                 <div class="linha"><span>Cidade / UF</span><b id="detCidadeUf">—</b></div>
-                <div class="linha"><span>Coordenadas</span><b id="detCoords">—</b></div>
-                <div class="linha"><span>Última atualização</span><b id="detUltimaAtt">—</b></div>
+                <div class="linha"><span>Data</span><b id="detData">—</b></div>
+                <div class="linha"><span>Horário do último ponto</span><span id="detHora" style="color:var(--telemetry)">—</span></div>
+                <div class="linha"><span>🌡️ Temperatura no local</span><b id="detTemperatura">—</b></div>
+                <div class="linha"><span>Última sincronização</span><b id="detUltimaAtt">—</b></div>
 
                 <label class="rotulo-secao">Ver rota de</label>
                 <select id="seletorData"></select>
@@ -209,23 +216,18 @@ firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
 var auth = firebase.auth();
 
-// Veículo é considerado "sem sinal" se não atualiza há mais que isso
-var LIMITE_SEM_SINAL_MS = 10 * 60 * 1000; // 10 minutos
+var LIMITE_SEM_SINAL_MS = 10 * 60 * 1000; 
 
-// Chamada de rede com timeout — evita travar numa requisição pendurada
 function fetchComTimeout(url, opcoes, timeoutMs) {
     var controller = new AbortController();
     var id = setTimeout(() => controller.abort(), timeoutMs);
     return fetch(url, Object.assign({}, opcoes, { signal: controller.signal })).finally(() => clearTimeout(id));
 }
 
-// Encaixa a rota perfeitamente seguindo o traçado das ruas via OSRM Route API
 function encaixarRotaNasRuas(pontosOriginais) {
     if (!pontosOriginais || pontosOriginais.length < 2) {
         return Promise.resolve({ pontos: pontosOriginais || [], sucesso: false, motivo: "Poucos pontos para calcular rota." });
     }
-
-    // Filtra apenas pontos sequenciais idênticos para não confundir a URL
     var pontos = [pontosOriginais[0]];
     for (var k = 1; k < pontosOriginais.length; k++) {
         var anterior = pontos[pontos.length - 1];
@@ -234,7 +236,6 @@ function encaixarRotaNasRuas(pontosOriginais) {
             pontos.push(atual);
         }
     }
-
     if (pontos.length < 2) {
         return Promise.resolve({ pontos: pontosOriginais, sucesso: false, motivo: "Pontos estáticos." });
     }
@@ -248,9 +249,7 @@ function encaixarRotaNasRuas(pontosOriginais) {
             totalFolhas++;
             return Promise.resolve(trecho);
         }
-
         var coordsStr = trecho.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
-        // Mudamos para o serviço de Roteamento (/route/) para forçar a precisão sobre as vias urbanas
         var url = `https://router.project-osrm.org/route/v1/driving/${coordsStr}?overview=full&geometries=geojson&continue_straight=true`;
 
         return fetchComTimeout(url, {}, 9000)
@@ -333,9 +332,6 @@ function fazerLogin() {
             case 'auth/invalid-credential':
             case 'auth/wrong-password': msg = "E-mail ou senha incorretos."; break;
             case 'auth/too-many-requests': msg = "Muitas tentativas erradas. Aguarde um pouco e tente de novo."; break;
-            case 'auth/operation-not-allowed':
-                msg = "Login por e-mail/senha não está ativado no Firebase (Authentication → Sign-in method → Email/Senha).";
-                break;
             default: msg = "Erro ao entrar: " + error.message;
         }
         erroBox.textContent = msg;
@@ -349,31 +345,34 @@ document.getElementById('btnSair').addEventListener('click', function() {
 
 auth.onAuthStateChanged(function(usuario) {
     if (usuario) {
-        document.getElementById('telaLogin').style.display = "none";
-        document.getElementById('painel').style.display = "flex";
         iniciarPainel();
     } else {
-        document.getElementById('painel').style.display = "none";
-        document.getElementById('telaLogin').style.display = "flex";
-        pararPainel();
+        exibirTelaLogin();
     }
 });
 
-// ===================== MAPA =====================
+function exibirTelaLogin() {
+    document.getElementById('painel').style.display = "none";
+    document.getElementById('telaLogin').style.display = "flex";
+    pararPainel();
+}
+
+// ===================== MAPA E DADOS =====================
 var map = null;
-var marcadores = {}; // vID -> L.marker
+var marcadores = {}; 
 var polilinhaHistorico = null;
 var painelIniciado = false;
 var refVeiculos = null;
 var refHistoricoAtivo = null;
 var veiculoSelecionado = null;
-var dadosVeiculos = {}; // cache local: vID -> objeto "atual"
+var dadosVeiculos = {}; 
 var termoBusca = "";
-var historicoBrutoAtual = []; // pontos crus (na ordem) do histórico do veículo selecionado
+var historicoBrutoAtual = []; 
 var dataSelecionada = "AO_VIVO";
 var marcadorPartida = null;
 var marcadorChegada = null;
-var tokenCarregamentoRota = 0; // evita que uma resposta de rede antiga sobrescreva uma seleção mais nova
+var tokenCarregamentoRota = 0;
+var intervaloAtualizacao = null;
 
 function corDoStatus(status) {
     if (!status) return { cor: '#74808f', badge: 'badge-semsinal', texto: 'SEM DADOS' };
@@ -403,24 +402,29 @@ function iconePara(status) {
 
 function iniciarPainel() {
     if (painelIniciado) return;
-    painelIniciado = true;
 
-    map = L.map('map').setView([-29.6133, -52.1919], 13);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap'
-    }).addTo(map);
-    polilinhaHistorico = L.polyline([], { color: '#2dd4ff', weight: 5, opacity: 0.9 }).addTo(map);
+    if (!map) {
+        map = L.map('map').setView([-29.6133, -52.1919], 13);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+        polilinhaHistorico = L.polyline([], { color: '#00ff00', weight: 5, opacity: 0.9 }).addTo(map);
 
-    document.getElementById('inputBusca').addEventListener('input', function(e) {
-        termoBusca = e.target.value.trim().toUpperCase();
-        renderizarLista();
-    });
+        document.getElementById('inputBusca').addEventListener('input', function(e) {
+            termoBusca = e.target.value.trim().toUpperCase();
+            renderizarLista();
+        });
 
-    document.getElementById('btnExportarHistorico').addEventListener('click', exportarHistoricoSelecionado);
+        document.getElementById('btnExportarHistorico').addEventListener('click', exportarHistoricoSelecionado);
+    }
 
     refVeiculos = db.ref('veiculos');
     refVeiculos.on('value', function(snapshot) {
+        painelIniciado = true;
+        document.getElementById('telaLogin').style.display = "none";
+        document.getElementById('painel').style.display = "flex";
+
         var dados = snapshot.val() || {};
         dadosVeiculos = {};
         Object.keys(dados).forEach(function(vID) {
@@ -432,24 +436,35 @@ function iniciarPainel() {
         renderizarLista();
         atualizarDetalheSeSelecionado();
         document.getElementById('statusConexaoAdmin').textContent =
-            "Conectado • " + Object.keys(dadosVeiculos).length + " veículo(s) na base";
+            "Conectado • " + Object.keys(dadosVeiculos).length + " veículo(s) ativo(s)";
     }, function(erro) {
-        document.getElementById('statusConexaoAdmin').textContent = "⚠️ Erro ao conectar: " + erro.message;
+        console.error(erro);
+        auth.signOut();
+        exibirTelaLogin();
+        
+        var erroBox = document.getElementById('loginErro');
+        erroBox.textContent = "Acesso negado: Esta conta não tem permissão de Administrador.";
+        erroBox.style.display = "block";
     });
 
-    // Atualiza os textos de "há X min" a cada 15s, mesmo sem novo dado chegar
-    setInterval(function() {
-        renderizarLista();
-        atualizarDetalheSeSelecionado();
-    }, 15000);
+    if (!intervaloAtualizacao) {
+        intervaloAtualizacao = setInterval(function() {
+            if (painelIniciado) {
+                renderizarLista();
+                atualizarDetalheSeSelecionado();
+            }
+        }, 15000);
+    }
 }
 
 function pararPainel() {
-    if (refVeiculos) refVeiculos.off();
-    if (refHistoricoAtivo) refHistoricoAtivo.off();
+    if (refVeiculos) { refVeiculos.off(); refVeiculos = null; }
+    if (refHistoricoAtivo) { refHistoricoAtivo.off(); refHistoricoAtivo = null; }
+    if (intervaloAtualizacao) { clearInterval(intervaloAtualizacao); intervaloAtualizacao = null; }
     painelIniciado = false;
     dadosVeiculos = {};
     veiculoSelecionado = null;
+    document.getElementById('statusConexaoAdmin').textContent = "Sessão encerrada.";
 }
 
 function atualizarMarcadores() {
@@ -488,7 +503,7 @@ function renderizarLista() {
     document.getElementById('contadorFrota').textContent = ids.length + " veículo(s)" + (termoBusca ? " (filtrado)" : "");
 
     if (ids.length === 0) {
-        container.innerHTML = "<div id='vazio'>Nenhum veículo encontrado ainda. Assim que um veículo cadastrado no rastreador enviar dados, ele aparece aqui automaticamente.</div>";
+        container.innerHTML = "<div id='vazio'>Nenhum veículo encontrado.</div>";
         return;
     }
 
@@ -551,7 +566,7 @@ function popularSeletorDeData() {
     });
 
     function paraOrdenacao(dataStr) {
-        var partes = dataStr.split('/'); // dd/mm/aaaa
+        var partes = dataStr.split('/');
         return partes[2] + partes[1] + partes[0];
     }
     var listaDatas = Object.keys(datasUnicas).sort(function(a, b) {
@@ -658,6 +673,15 @@ function renderizarTimeline(pontos) {
         if (idx === 0) marca = `<span class="marcador-ponta marcador-chegada">FIM</span> `;
         else if (idx === invertido.length - 1) marca = `<span class="marcador-ponta marcador-partida">INÍCIO</span> `;
         div.innerHTML = `<span class="hora">${p.hora || '—'}</span><span class="end">${marca}${p.rua || 'Endereço indisponível'}, ${p.bairro || '—'}</span>`;
+        
+        div.addEventListener('click', function() {
+            map.setView([p.lat, p.lon], 17);
+            L.popup()
+                .setLatLng([p.lat, p.lon])
+                .setContent(`<b>Ponto de Histórico</b><br><b>Hora:</b> ${p.hora || '—'}<br><b>Velocidade:</b> ${p.velocidade != null ? p.velocidade + ' km/h' : '—'}<br>${p.rua || ''}`)
+                .openOn(map);
+        });
+        
         container.appendChild(div);
     });
 }
@@ -676,13 +700,18 @@ function atualizarDetalheVeiculo(vID) {
     document.getElementById('detalheTitulo').textContent = "🚗 " + vID;
     document.getElementById('detSituacao').innerHTML = `<span class="badge ${info.badge}">${info.texto}</span>`;
     document.getElementById('detVelocidade').textContent = v.velocidade != null ? v.velocidade + " km/h" : "—";
+    
+    document.getElementById('detPrecisao').textContent = v.precisao ? v.precisao : (v.precisaoGPS ? v.precisaoGPS : "—");
+    document.getElementById('detTempoParado').textContent = v.tempoParado || "—";
+    document.getElementById('detTemperatura').textContent = v.temperatura || "—";
+    document.getElementById('detData').textContent = v.data || "—";
+    document.getElementById('detHora').textContent = v.hora || "—";
+    
     document.getElementById('detRua').textContent = v.rua || "—";
     document.getElementById('detBairro').textContent = v.bairro || "—";
     document.getElementById('detCidadeUf').textContent = (v.cidade || "—") + " / " + (v.estado || "—");
     document.getElementById('detCoords').textContent = (typeof v.lat === "number") ? v.lat.toFixed(6) + ", " + v.lon.toFixed(6) : "—";
-    document.getElementById('detUltimaAtt').textContent = v.atualizadoEm
-        ? formatarTempoDecorrido(v.atualizadoEm) + " (" + (v.data || "") + " " + (v.hora || "") + ")"
-        : (v.data || "") + " " + (v.hora || "—");
+    document.getElementById('detUltimaAtt').textContent = v.atualizadoEm ? formatarTempoDecorrido(v.atualizadoEm) : "—";
 }
 
 function exportarHistoricoSelecionado() {
