@@ -73,13 +73,13 @@
             border-left: 1px solid var(--border); display: flex; flex-direction: column;
         }
         #buscaVeiculo {
-            padding: 12px; border-bottom: 1px solid var(--border);
+            padding: 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
         }
         #buscaVeiculo input {
             width: 100%; background: #1a212b; border: 1px solid var(--border);
             padding: 10px; border-radius: 6px; color: white; font-size: 0.9em;
         }
-        #contadorFrota { padding: 8px 12px; font-size: 0.75em; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+        #contadorFrota { padding: 8px 12px; font-size: 0.75em; color: var(--text-dim); border-bottom: 1px solid var(--border); flex-shrink: 0; }
         #listaVeiculosAdmin { flex: 1; overflow-y: auto; }
 
         .card-veiculo {
@@ -104,20 +104,20 @@
         #detalheVeiculo {
             border-top: 1px solid var(--border); padding: 12px 14px; display: none; flex-shrink: 0; overflow-y: auto; flex: 1;
         }
-        #detalheVeiculo.ativo { display: block; }
-        #detalheVeiculo .linha { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85em; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 8px; }
+        #detalheVeiculo.ativo { display: flex; flex-direction: column; }
+        #detalheVeiculo .linha { display: flex; justify-content: space-between; padding: 5px 0; font-size: 0.85em; border-bottom: 1px solid rgba(255,255,255,0.04); gap: 8px; flex-shrink: 0; }
         #detalheVeiculo .linha b, #detalheVeiculo .linha span { text-align: right; word-break: break-all; }
         #detalheVeiculo .linha:last-child { border-bottom: none; }
         #detalheVeiculo button {
             width: 100%; margin-top: 10px; background: #1a212b; border: 1px solid var(--border);
-            color: var(--text); padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.8em; font-weight: bold;
+            color: var(--text); padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.8em; font-weight: bold; flex-shrink: 0;
         }
-        .rotulo-secao { font-size: 0.7em; text-transform: uppercase; color: var(--text-dim); font-weight: bold; margin: 14px 0 6px; }
+        .rotulo-secao { font-size: 0.7em; text-transform: uppercase; color: var(--text-dim); font-weight: bold; margin: 14px 0 6px; flex-shrink: 0; }
         #seletorData {
             width: 100%; background: #1a212b; border: 1px solid var(--border); color: var(--text);
-            padding: 9px; border-radius: 6px; font-size: 0.85em;
+            padding: 9px; border-radius: 6px; font-size: 0.85em; flex-shrink: 0;
         }
-        #timelineRota { max-height: 220px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; }
+        #timelineRota { height: 220px; min-height: 150px; overflow-y: auto; margin-top: 8px; border: 1px solid var(--border); border-radius: 6px; flex-grow: 1; }
         .item-timeline { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.78em; display: flex; gap: 8px; cursor: pointer; transition: background 0.2s; }
         .item-timeline:hover { background: rgba(255,255,255,0.05); }
         .item-timeline:last-child { border-bottom: none; }
@@ -129,8 +129,8 @@
 
         @media (max-width: 720px) {
             #corpo { flex-direction: column; }
-            #barraLateral { width: 100%; max-width: 100%; height: 42vh; border-left: none; border-top: 1px solid var(--border); }
-            #map { height: 58vh; }
+            #barraLateral { width: 100%; max-width: 100%; height: 50vh; border-left: none; border-top: 1px solid var(--border); }
+            #map { height: 50vh; }
         }
     </style>
 </head>
@@ -622,7 +622,7 @@ function renderizarRotaSelecionada() {
         statusRota.textContent = dataSelecionada === "AO_VIVO"
             ? "Nenhum ponto registrado hoje ainda."
             : "Nenhum ponto registrado nesta data.";
-        timeline.innerHTML = "";
+        timeline.innerHTML = "<div style='padding:15px; text-align:center; color:var(--text-dim); font-size:0.85em;'>Nenhum trajeto para listar.</div>";
         return;
     }
 
