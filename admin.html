@@ -225,76 +225,95 @@ function fetchComTimeout(url, opcoes, timeoutMs) {
 // lotes de até 95 pontos (limite prático do serviço), com 1 ponto de sobreposição
 // entre lotes para a linha final não ter "quebras" entre um lote e o próximo.
 function encaixarRotaNasRuas(pontosOriginais) {
-    return new Promise(function(resolve) {
-        if (!pontosOriginais || pontosOriginais.length < 2) {
-            resolve({ pontos: pontosOriginais || [], sucesso: false, motivo: "Poucos pontos para calcular rota." });
-            return;
+    if (!pontosOriginais || pontosOriginais.length < 2) {
+        return Promise.resolve({ pontos: pontosOriginais || [], sucesso: false, motivo: "Poucos pontos para calcular rota." });
+    }
+
+    // Remove pontos praticamente idênticos e consecutivos (comum quando o veículo
+    // fica parado) — isso confunde o encaixe nas ruas e não agrega nada à linha.
+    var pontos = [pontosOriginais[0]];
+    for (var k = 1; k < pontosOriginais.length; k++) {
+        var anterior = pontos[pontos.length - 1];
+        var atual = pontosOriginais[k];
+        var dLat = Math.abs(anterior[0] - atual[0]);
+        var dLon = Math.abs(anterior[1] - atual[1]);
+        if (dLat > 0.00003 || dLon > 0.00003) pontos.push(atual); // ~3m de diferença mínima
+    }
+    if (pontos.length < 2) {
+        return Promise.resolve({ pontos: pontosOriginais, sucesso: false, motivo: "Todos os pontos estão praticamente no mesmo lugar." });
+    }
+
+    var totalFolhasOk = 0;
+    var totalFolhas = 0;
+    var motivosFalha = [];
+
+    // Processa um trecho de pontos. Se o OSRM recusar por ser grande demais
+    // ("TooBig" — comum quando há muitos pontos ou eles estão muito espaçados),
+    // divide o trecho ao meio (com 1 ponto de sobreposição) e tenta cada metade
+    // separadamente, recursivamente, até caber no limite do servidor.
+    function processarTrecho(trecho, profundidade) {
+        if (trecho.length < 2) {
+            totalFolhas++;
+            return Promise.resolve(trecho);
         }
 
-        // Remove pontos praticamente idênticos e consecutivos (comum quando o veículo
-        // fica parado) — isso confunde o encaixe nas ruas e não agrega nada à linha.
-        var pontos = [pontosOriginais[0]];
-        for (var k = 1; k < pontosOriginais.length; k++) {
-            var anterior = pontos[pontos.length - 1];
-            var atual = pontosOriginais[k];
-            var dLat = Math.abs(anterior[0] - atual[0]);
-            var dLon = Math.abs(anterior[1] - atual[1]);
-            if (dLat > 0.00003 || dLon > 0.00003) pontos.push(atual); // ~3m de diferença mínima
-        }
-        if (pontos.length < 2) {
-            resolve({ pontos: pontosOriginais, sucesso: false, motivo: "Todos os pontos estão praticamente no mesmo lugar." });
-            return;
-        }
+        var coordsStr = trecho.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
+        var raios = trecho.map(function() { return 60; }).join(";");
+        var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}?overview=full&geometries=geojson&radiuses=${raios}`;
 
-        var TAMANHO_LOTE = 95;
-        var lotes = [];
-        var i = 0;
-        while (i < pontos.length) {
-            var fim = Math.min(i + TAMANHO_LOTE, pontos.length);
-            lotes.push(pontos.slice(i, fim));
-            if (fim >= pontos.length) break;
-            i = fim - 1;
-        }
+        return fetchComTimeout(url, {}, 9000)
+            .then(res => res.json())
+            .then(data => {
+                if (data.code === "Ok" && data.matchings && data.matchings.length > 0) {
+                    totalFolhas++;
+                    totalFolhasOk++;
+                    var pts = [];
+                    data.matchings.forEach(m => m.geometry.coordinates.forEach(c => pts.push([c[1], c[0]])));
+                    return pts;
+                }
+                if (data.code === "TooBig" && trecho.length > 3 && profundidade < 8) {
+                    var meio = Math.ceil(trecho.length / 2);
+                    var metade1 = trecho.slice(0, meio);
+                    var metade2 = trecho.slice(meio - 1); // sobreposição de 1 ponto
+                    return Promise.all([
+                        processarTrecho(metade1, profundidade + 1),
+                        processarTrecho(metade2, profundidade + 1)
+                    ]).then(([r1, r2]) => r1.concat(r2));
+                }
+                totalFolhas++;
+                motivosFalha.push((data && data.code) ? "OSRM: " + data.code : "Resposta inesperada do serviço de rotas");
+                return trecho; // fallback: pontos crus deste trecho
+            })
+            .catch((err) => {
+                totalFolhas++;
+                motivosFalha.push((err && err.name === "AbortError") ? "Tempo esgotado ao contatar o serviço de rotas" : "Falha de rede: " + (err && err.message));
+                return trecho;
+            });
+    }
 
+    // Trechos iniciais de até 60 pontos (o próprio OSRM/servidor público decide se
+    // aceita ou não — se recusar, a função já sabe se dividir sozinha).
+    var TAMANHO_LOTE_INICIAL = 60;
+    var lotesIniciais = [];
+    var i = 0;
+    while (i < pontos.length) {
+        var fim = Math.min(i + TAMANHO_LOTE_INICIAL, pontos.length);
+        lotesIniciais.push(pontos.slice(i, fim));
+        if (fim >= pontos.length) break;
+        i = fim - 1;
+    }
+
+    return Promise.all(lotesIniciais.map(lote => processarTrecho(lote, 0))).then(function(partes) {
         var resultado = [];
-        var lotesOk = 0;
-        var motivosFalha = [];
-
-        function processarLote(idx) {
-            if (idx >= lotes.length) {
-                resolve({
-                    pontos: resultado.length ? resultado : pontos,
-                    sucesso: lotesOk === lotes.length,
-                    parcial: lotesOk > 0 && lotesOk < lotes.length,
-                    lotesOk: lotesOk,
-                    totalLotes: lotes.length,
-                    motivo: motivosFalha.length ? motivosFalha[0] : null
-                });
-                return;
-            }
-            var lote = lotes[idx];
-            var coordsStr = lote.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
-            var raios = lote.map(function() { return 60; }).join(";"); // tolerância maior para GPS impreciso
-            var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}?overview=full&geometries=geojson&radiuses=${raios}`;
-
-            fetchComTimeout(url, {}, 9000)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.code === "Ok" && data.matchings && data.matchings.length > 0) {
-                        data.matchings.forEach(m => m.geometry.coordinates.forEach(c => resultado.push([c[1], c[0]])));
-                        lotesOk++;
-                    } else {
-                        lote.forEach(p => resultado.push(p)); // fallback: pontos crus deste lote
-                        motivosFalha.push((data && data.code) ? "OSRM: " + data.code : "Resposta inesperada do serviço de rotas");
-                    }
-                })
-                .catch((err) => {
-                    lote.forEach(p => resultado.push(p));
-                    motivosFalha.push((err && err.name === "AbortError") ? "Tempo esgotado ao contatar o serviço de rotas" : "Falha de rede: " + (err && err.message));
-                })
-                .finally(() => processarLote(idx + 1));
-        }
-        processarLote(0);
+        partes.forEach(p => resultado = resultado.concat(p));
+        return {
+            pontos: resultado.length ? resultado : pontos,
+            sucesso: totalFolhas > 0 && totalFolhasOk === totalFolhas,
+            parcial: totalFolhasOk > 0 && totalFolhasOk < totalFolhas,
+            lotesOk: totalFolhasOk,
+            totalLotes: totalFolhas,
+            motivo: motivosFalha.length ? motivosFalha[0] : null
+        };
     });
 }
 
