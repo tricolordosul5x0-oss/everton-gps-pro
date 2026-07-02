@@ -53,14 +53,37 @@
         .badge { font-size: 0.75em; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
         .badge-movimento { background: rgba(0,255,166,0.15); color: var(--signal-on); }
         .badge-parado { background: rgba(255,176,32,0.15); color: var(--signal-off); }
-        .badge-perigo { background: rgba(255,84,112,0.15); color: var(--danger); }
+        .badge-perigo { background: rgba(255, 84, 112, 0.15); color: var(--danger); }
 
         .gps-warning { background: rgba(255,84,112,0.12); border: 1px solid var(--danger); color: var(--danger); padding: 10px 12px; border-radius: 6px; font-size: 0.85em; display: none; }
 
         .fila-info { font-size: 0.75em; color: var(--text-dim); text-align: center; }
+
+        /* Estilos do Modal de Autenticação */
+        .auth-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); display: flex; align-items: center; justify-content: center; z-index: 10000; display: none; }
+        .auth-card { background: var(--bg-card); border: 1px solid var(--border); padding: 24px; border-radius: 12px; width: 90%; max-width: 360px; display: flex; flex-direction: column; gap: 16px; position: relative; }
+        .auth-card h3 { margin: 0; color: var(--text); font-size: 1.2em; text-align: center; }
+        .btn-fechar-modal { position: absolute; top: 12px; right: 12px; background: none; border: none; color: var(--text-dim); font-size: 1.2em; cursor: pointer; padding: 0; }
+        .user-logado-info { font-size: 0.75em; color: var(--signal-on); text-align: center; margin-top: -4px; display: none; }
     </style>
 </head>
 <body>
+
+<div id="authModal" class="auth-overlay">
+    <div class="auth-card">
+        <button class="btn-fechar-modal" id="btnFecharLogin">×</button>
+        <h3>🔐 Autenticação Requerida</h3>
+        <div>
+            <label style="font-size: 0.75em; color: var(--text-dim); text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">E-mail</label>
+            <input type="email" id="authEmail" placeholder="seu-email@gmail.com" style="width: 100%; box-sizing: border-box;">
+        </div>
+        <div>
+            <label style="font-size: 0.75em; color: var(--text-dim); text-transform: uppercase; font-weight: bold; display: block; margin-bottom: 4px;">Senha</label>
+            <input type="password" id="authSenha" placeholder="******" style="width: 100%; box-sizing: border-box;">
+        </div>
+        <button id="btnConfirmarLogin" style="background: var(--telemetry); width: 100%;">Entrar e Executar</button>
+    </div>
+</div>
 
 <div id="map"></div>
 
@@ -70,7 +93,8 @@
 
     <div class="input-box">
         <label>Cadastrar Novo Veículo na Lista</label>
-        <div class="row">
+        <div id="userLogadoInfo" class="user-logado-info">Sessão Administrador Ativa</div>
+        <div class="row" style="margin-top: 4px;">
             <input type="text" id="veiculoInput" placeholder="Ex: NISSAN ISA, FIAT UNO">
             <button id="btnAdicionar">Adicionar</button>
         </div>
@@ -113,6 +137,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
 <script>
 // ===================== CONFIGURAÇÃO =====================
@@ -127,17 +152,15 @@ var firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 var db = firebase.database();
+var auth = firebase.auth(); // Instanciando autenticação
 
 var LIMITE_VELOCIDADE = 80;
 var EMPRESA_ID = "tricolordosul5x0_gmail_com";
 
-// Nominatim pede no máximo ~1 requisição por segundo. Respeitamos isso
-// processando um ponto de cada vez, em ordem, sem pular nenhum.
 var INTERVALO_GEOCODIFICACAO_MS = 1100;
 var MAX_TENTATIVAS_GEOCODIFICACAO = 3;
 var TIMEOUT_FETCH_MS = 8000;
 
-// Chamada de rede com timeout — evita que um fetch travado prenda a fila para sempre
 function fetchComTimeout(url, opcoes, timeoutMs) {
     var controller = new AbortController();
     var id = setTimeout(() => controller.abort(), timeoutMs);
@@ -171,9 +194,7 @@ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 var marcador = L.marker([-29.6133, -52.1919]).addTo(map);
 var circuloPrecisao = L.circle([-29.6133, -52.1919], { radius: 0, color: '#2dd4ff', fillOpacity: 0.1, weight: 1 }).addTo(map);
-// Linha "crua": liga os pontos de GPS direto, sem seguir ruas (fica reta entre pontos distantes)
 var polilinhaRota = L.polyline([], {color: 'rgba(45,212,255,0.35)', weight: 3, opacity: 0.6, dashArray: '4,6'}).addTo(map);
-// Linha "encaixada nas ruas": desenhada pelo OSRM seguindo o traçado real das vias
 var polilinhaRuas = L.polyline([], {color: '#2dd4ff', weight: 6, opacity: 0.95}).addTo(map);
 
 // ===================== ESTADO PERSISTENTE =====================
@@ -181,7 +202,6 @@ var listaVeiculos = JSON.parse(localStorage.getItem('frota_veiculos') || "[]");
 var filaPendentes = JSON.parse(localStorage.getItem('fila_rastreio') || "[]");
 var filaGeocodificarDepois = JSON.parse(localStorage.getItem('fila_geocodificar') || "[]");
 var historicoCoordenadasLocais = JSON.parse(localStorage.getItem('historico_coords') || "[]");
-// Registro completo da rota real: cada ponto com data/hora/endereço, para consulta e exportação
 var registroCompleto = JSON.parse(localStorage.getItem('registro_completo') || "[]");
 
 if (historicoCoordenadasLocais.length > 0) {
@@ -196,12 +216,69 @@ function salvarTudo() {
     localStorage.setItem('fila_rastreio', JSON.stringify(filaPendentes));
     localStorage.setItem('fila_geocodificar', JSON.stringify(filaGeocodificarDepois));
     localStorage.setItem('historico_coords', JSON.stringify(historicoCoordenadasLocais));
-    // Limita o registro completo para não estourar o armazenamento local
     if (registroCompleto.length > 5000) registroCompleto = registroCompleto.slice(-5000);
     localStorage.setItem('registro_completo', JSON.stringify(registroCompleto));
 }
 
-// ===================== CADASTRO DE VEÍCULOS =====================
+// ===================== CONTROLE DO MODAL DE LOGIN INTERNO =====================
+var acaoPendente = null;
+
+function abrirModalLogin(callbackAcao) {
+    // Se já estiver logado no Firebase Auth, executa direto sem pedir senha novamente
+    if (auth.currentUser) {
+        callbackAcao();
+        return;
+    }
+    acaoPendente = callbackAcao;
+    document.getElementById('authModal').style.display = "flex";
+}
+
+document.getElementById('btnFecharLogin').addEventListener('click', function() {
+    document.getElementById('authModal').style.display = "none";
+    acaoPendente = null;
+});
+
+document.getElementById('btnConfirmarLogin').addEventListener('click', function() {
+    var email = document.getElementById('authEmail').value.trim();
+    var senha = document.getElementById('authSenha').value;
+
+    if (!email || !senha) return alert("Preencha todos os campos!");
+
+    document.getElementById('btnConfirmarLogin').textContent = "Autenticando...";
+    document.getElementById('btnConfirmarLogin').disabled = true;
+
+    auth.signInWithEmailAndPassword(email, senha)
+        .then(() => {
+            document.getElementById('authModal').style.display = "none";
+            document.getElementById('authEmail').value = "";
+            document.getElementById('authSenha').value = "";
+            if (acaoPendente) {
+                acaoPendente();
+                acaoPendente = null;
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert("Erro na autenticação: Verifique seus dados. " + err.message);
+        })
+        .finally(() => {
+            document.getElementById('btnConfirmarLogin').textContent = "Entrar e Executar";
+            document.getElementById('btnConfirmarLogin').disabled = false;
+        });
+});
+
+// Monitora o estado de login para atualizar avisos visuais na tela
+auth.onAuthStateChanged(user => {
+    var badgeUser = document.getElementById('userLogadoInfo');
+    if (user) {
+        badgeUser.style.display = "block";
+    } else {
+        badgeUser.style.display = "none";
+    }
+});
+
+
+// ===================== CADASTRO DE VEÍCULOS (PROTEGIDOS) =====================
 function renderizarFrotaLocal() {
     var container = document.getElementById('listaFrotaLocal');
     container.innerHTML = "";
@@ -212,7 +289,7 @@ function renderizarFrotaLocal() {
     listaVeiculos.forEach((nome, index) => {
         var tag = document.createElement('div');
         tag.className = "tag-veiculo";
-        tag.innerHTML = `🚗 <b>${nome}</b> <button class="btn-remover" onclick="removerVeiculo(${index})">×</button>`;
+        tag.innerHTML = `🚗 <b>${nome}</b> <button class="btn-remover" onclick="removerVeiculoExigindoSenha(${index})">×</button>`;
         container.appendChild(tag);
     });
 }
@@ -222,20 +299,30 @@ document.getElementById('btnAdicionar').addEventListener('click', function() {
     if (!nome) return alert('Digite um identificador!');
     if (listaVeiculos.includes(nome)) return alert('Esse veículo já está cadastrado!');
 
-    listaVeiculos.push(nome);
-    salvarTudo();
-    document.getElementById('veiculoInput').value = "";
-    renderizarFrotaLocal();
-    processarFilaGeocodificacao();
-    enviarDadosFila();
+    // Pede login/senha antes de incluir
+    abrirModalLogin(function() {
+        listaVeiculos.push(nome);
+        salvarTudo();
+        document.getElementById('veiculoInput').value = "";
+        renderizarFrotaLocal();
+        processarFilaGeocodificacao();
+        enviarDadosFila();
+        auth.signOut(); // encerra a sessão para exigir senha novamente na próxima ação
+    });
 });
 
-window.removerVeiculo = function(index) {
-    if (confirm(`Remover o veículo ${listaVeiculos[index]} da lista local?`)) {
-        listaVeiculos.splice(index, 1);
-        salvarTudo();
-        renderizarFrotaLocal();
-    }
+window.removerVeiculoExigindoSenha = function(index) {
+    var nomeVeiculo = listaVeiculos[index];
+
+    // Pede login/senha antes de deletar
+    abrirModalLogin(function() {
+        if (confirm(`Remover o veículo ${nomeVeiculo} da lista local?`)) {
+            listaVeiculos.splice(index, 1);
+            salvarTudo();
+            renderizarFrotaLocal();
+        }
+        auth.signOut(); // encerra a sessão para exigir senha novamente na próxima ação
+    });
 };
 
 // ===================== TEMPO PARADO =====================
@@ -254,17 +341,11 @@ setInterval(function() {
     document.getElementById('txtTempoParado').textContent = `${hrs}:${mins}:${segs}`;
 }, 1000);
 
-// ===================== CAPTURA DE GPS (FUNCIONA OFFLINE) =====================
-// Distância mínima (em metros) que o veículo precisa se deslocar para que um
-// novo ponto seja gravado na rota/endereço/temperatura. Evita registrar pontos
-// "fantasmas" causados só pelo tremor natural do GPS quando o veículo está parado.
+// ===================== CAPTURA DE GPS =====================
 var DISTANCIA_MINIMA_MOVIMENTO_M = 20;
 var ultimoPontoRegistrado = historicoCoordenadasLocais.length > 0
     ? historicoCoordenadasLocais[historicoCoordenadasLocais.length - 1]
     : null;
-// Garante que, ao abrir o app, ele sempre busca rua/bairro/cidade/temperatura pelo
-// menos uma vez, mesmo que o último ponto salvo (de uma visita anterior) esteja
-// a menos de 20m — sem isso, reabrir o app no mesmo lugar deixava tudo travado em "—".
 var primeiraLeituraDestaSessao = true;
 
 function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
@@ -277,8 +358,6 @@ function calcularDistanciaMetros(lat1, lon1, lat2, lon2) {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Só avisa sobre falha de GPS depois de algumas falhas seguidas — uma falha isolada
-// (comum perto de prédios, nuvens, etc.) não deve gerar alarme na tela.
 var errosGpsConsecutivos = 0;
 var LIMITE_ERROS_PARA_AVISO = 4;
 
@@ -300,8 +379,6 @@ function iniciarRastreioGps() {
         var vel = position.coords.speed ? Math.round(position.coords.speed * 3.6) : 0;
         var agora = new Date();
 
-        // O mapa e a telemetria básica sempre mostram a posição mais atual, ao vivo,
-        // mesmo que o veículo esteja parado.
         map.setView([lat, lon], map.getZoom() < 14 ? 16 : map.getZoom());
         marcador.setLatLng([lat, lon]);
         if (precisao) {
@@ -330,8 +407,6 @@ function iniciarRastreioGps() {
             badgeStatus.className = "badge badge-movimento";
         }
 
-        // A partir daqui, só grava/consulta endereço/temperatura/rota se houve
-        // deslocamento real desde o último ponto gravado (ou se é o primeiro ponto).
         var distancia = ultimoPontoRegistrado
             ? calcularDistanciaMetros(ultimoPontoRegistrado[0], ultimoPontoRegistrado[1], lat, lon)
             : Infinity;
@@ -351,7 +426,6 @@ function iniciarRastreioGps() {
             document.getElementById('txtCidade').textContent = "Buscando...";
             document.getElementById('txtEstado').textContent = "Buscando...";
 
-            // Cada ponto real de deslocamento entra na fila — nenhum é descartado.
             filaGeocodificarDepois.push({
                 lat: lat, lon: lon, velocidade: vel, status: situacao,
                 tempoParado: document.getElementById('txtTempoParado').textContent,
@@ -368,8 +442,6 @@ function iniciarRastreioGps() {
         console.error(erro);
         errosGpsConsecutivos++;
 
-        // Negação de permissão é grave e deve avisar na hora.
-        // Timeout/sinal indisponível só avisa depois de falhas seguidas de verdade.
         if (erro.code === erro.PERMISSION_DENIED) {
             mostrarAvisoGps("⚠️ Permissão de localização negada. Ative o GPS nas permissões do navegador/app para este site.");
         } else if (errosGpsConsecutivos >= LIMITE_ERROS_PARA_AVISO) {
@@ -378,16 +450,13 @@ function iniciarRastreioGps() {
                 : "⚠️ Sinal de GPS instável. Tentando novamente...";
             mostrarAvisoGps(msg);
         }
-        // Falhas isoladas (1 a 3 seguidas) não mostram aviso — o GPS continua tentando sozinho.
 
     }, { enableHighAccuracy: true, maximumAge: 3000, timeout: 20000 });
 }
 
 iniciarRastreioGps();
 
-// ===================== ENCAIXE DA ROTA NAS RUAS (MAP MATCHING) =====================
-// Usa o serviço público de roteamento OSRM para "colar" os pontos brutos de GPS
-// no traçado real das vias, em vez de conectá-los com linha reta.
+// ===================== ENCAIXE DA ROTA NAS RUAS =====================
 var encaixeAgendado = false;
 var ultimoEncaixeTs = 0;
 var INTERVALO_MIN_ENCAIXE_MS = 4000;
@@ -406,33 +475,28 @@ function executarEncaixeNasRuas() {
 
     if (historicoCoordenadasLocais.length < 2) return;
 
-    // OSRM aceita um número limitado de pontos por requisição — usa os últimos 100
     var pontos = historicoCoordenadasLocais.slice(-100);
     var coordsStr = pontos.map(p => p[1].toFixed(6) + "," + p[0].toFixed(6)).join(";");
-    var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}?overview=full&geometries=geojson&radiuses=${pontos.map(()=>25).join(";")}`;
+    var url = `https://router.project-osrm.org/match/v1/driving/${coordsStr}?overview=full&geometries=geojson&overview=full`;
 
     fetchComTimeout(url, {}, TIMEOUT_FETCH_MS)
         .then(res => res.json())
         .then(data => {
             if (data.code === "Ok" && data.matchings && data.matchings.length > 0) {
-                // Junta a geometria de todos os trechos casados, na ordem
                 var pontosRua = [];
                 data.matchings.forEach(m => {
                     m.geometry.coordinates.forEach(c => pontosRua.push([c[1], c[0]]));
                 });
                 polilinhaRuas.setLatLngs(pontosRua);
             }
-            // Se falhar o encaixe, a linha pontilhada (rota crua) continua visível — nada trava.
         })
         .catch(err => console.warn("Encaixe nas ruas indisponível agora:", err));
 }
 
-// ===================== TERMÔMETRO (TEMPERATURA NO LOCAL) =====================
-// Usa a Open-Meteo (gratuita, sem chave de API) para mostrar a temperatura
-// atual no ponto onde o veículo está.
+// ===================== TERMÔMETRO =====================
 var ultimaBuscaTempTs = 0;
 var buscandoTemp = false;
-var INTERVALO_MIN_TEMPERATURA_MS = 5 * 60 * 1000; // a cada 5 minutos é suficiente para clima
+var INTERVALO_MIN_TEMPERATURA_MS = 5 * 60 * 1000;
 
 function talvezBuscarTemperatura(lat, lon) {
     var agora = Date.now();
@@ -455,16 +519,11 @@ function talvezBuscarTemperatura(lat, lon) {
                     data.current.temperature_2m.toFixed(1) + " °C" + sensacao;
             }
         })
-        .catch(err => {
-            console.warn("Falha ao buscar temperatura:", err);
-            // Não trava nada — só deixa o valor anterior (ou "—") na tela
-        })
+        .catch(err => console.warn("Falha ao buscar temperatura:", err))
         .finally(() => { buscandoTemp = false; });
 }
 
-// ===================== GEOCODIFICAÇÃO (RUA/BAIRRO/CIDADE/ESTADO) =====================
-// Processa em ORDEM (FIFO), um ponto por vez, sem pular nenhum — assim a rota
-// real fica registrada completa, com endereço de cada ponto, não só do último.
+// ===================== GEOCODIFICAÇÃO =====================
 var geocodificando = false;
 function processarFilaGeocodificacao() {
     if (geocodificando || filaGeocodificarDepois.length === 0) return;
@@ -494,20 +553,16 @@ function processarFilaGeocodificacao() {
         .catch(err => {
             console.warn("Falha ao buscar endereço:", err);
             ponto.tentativas = (ponto.tentativas || 0) + 1;
-            // Mostra o erro real na tela para diagnóstico (em vez de "Buscando..." eterno)
             if (ponto === filaGeocodificarDepois[filaGeocodificarDepois.length - 1]) {
                 var msgErro = "Erro: " + (err && err.name ? err.name + " - " : "") + (err && err.message ? err.message : String(err));
                 document.getElementById('txtRua').textContent = msgErro;
                 document.getElementById('txtBairro').textContent = "(tentativa " + ponto.tentativas + "/" + MAX_TENTATIVAS_GEOCODIFICACAO + ")";
             }
             if (ponto.tentativas >= MAX_TENTATIVAS_GEOCODIFICACAO) {
-                // Desiste deste ponto específico (sem travar os pontos seguintes),
-                // mas mantém coordenadas exatas registradas — só o nome da rua fica indisponível.
                 gravarPontoProcessado(ponto, "Endereço indisponível", "—", "—", "—");
                 filaGeocodificarDepois.shift();
                 mostrarAvisoGps("⚠️ Não foi possível buscar o endereço de alguns pontos (sem resposta do serviço de mapas). As coordenadas foram salvas normalmente.");
             }
-            // Se ainda não atingiu o máximo de tentativas, o ponto continua na fila e será tentado de novo.
         })
         .finally(() => {
             geocodificando = false;
@@ -521,7 +576,6 @@ function processarFilaGeocodificacao() {
 }
 
 function gravarPontoProcessado(ponto, rua, bairro, cidade, estado) {
-    // Atualiza a tela sempre que o ponto processado for o mais recente da fila local
     if (ponto === filaGeocodificarDepois[filaGeocodificarDepois.length - 1]) {
         document.getElementById('txtRua').textContent = rua;
         document.getElementById('txtBairro').textContent = bairro;
@@ -654,8 +708,6 @@ renderizarFrotaLocal();
 atualizarInterfaceEstado();
 checarContextoSeguro();
 
-// Rede de segurança: tenta novamente a cada 6s, mesmo que eventos 'online'
-// não disparem corretamente ou navigator.onLine esteja incorreto no aparelho.
 setInterval(function() {
     if (filaGeocodificarDepois.length > 0) processarFilaGeocodificacao();
     if (filaPendentes.length > 0) enviarDadosFila();
